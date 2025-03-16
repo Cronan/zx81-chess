@@ -6,24 +6,21 @@
 |_|    |_|   |_|    |____/|___|\___/|_|  |_|/_/  \_\
 ```
 
-# My Story: A 14-Year-Old, a ZX81, and a Dream
+# My Story: A Kid in Durban, a ZX81, and 1024 Bytes
 
 ---
 
 ## Christmas 1981
 
-It came in a white box, smaller than I expected. My dad had ordered it from an advert in the back of a Sunday newspaper supplement. The **Sinclair ZX81** - Britain's cheapest computer, yours for 49.95 in kit form or 69.95 ready-built. Ours was ready-built. Dad wasn't much for soldering.
+I was twelve years old and living in Durban, South Africa. On Christmas morning my dad handed me two presents. One was small and surprisingly light. The other was heavy — properly heavy, the way only a thick book can be.
 
-The box contained:
-- One ZX81 computer (about the size of a paperback book)
-- One TV lead (RF modulator)
-- One power supply (9V DC, ran hot enough to fry an egg)
-- One manual (the famous Sinclair BASIC programming manual)
-- No monitor (use your telly)
-- No tape recorder (use your own)
-- No software (write your own)
+The small one was a **Sinclair ZX81**. He'd ordered it from somewhere overseas — I never did find out exactly where, or how long it took to get through. Importing anything electronic into South Africa in those days was a mission. You couldn't just pop down to the shops. There was no CompuTech on the corner. You waited, and you hoped customs didn't lose it.
 
-I plugged it into the family television, connected the power, and was greeted by the now-iconic inverse-K cursor blinking at me from a white screen.
+The heavy one was **"Programming the Z80"** by Rodnay Zaks. 624 pages. My dad must have known — or guessed, or been told by someone at work — that if you wanted to do anything serious with the ZX81, you'd need to understand the processor inside it. He wasn't a computer person himself, but he was the kind of dad who'd figure out what his kid needed and then quietly go and find it.
+
+The ZX81 was smaller than my school textbooks. Lighter than my pencil case. A flat membrane keyboard that felt like typing on a placemat. One kilobyte of RAM.
+
+The most beautiful thing I'd ever seen.
 
 ```
   ____________________
@@ -33,13 +30,16 @@ I plugged it into the family television, connected the power, and was greeted by
  |                    |
  |____________________|
 
-    (The ZX81 boot screen.
-     That K cursor meant
-     "I'm ready. What do
-     you want me to do?")
+    That inverse-K cursor,
+    blinking on our family
+    television in the lounge.
+    Christmas morning, 1981.
+    Durban.
 ```
 
-I typed my first program:
+We hooked it up to the telly with the RF lead. Channel 36 — or whatever the PAL equivalent was in South Africa. The picture was terrible. Black and white, slightly wobbly, and if someone walked past the aerial lead the screen would scramble. None of that mattered.
+
+I typed:
 
 ```
 10 PRINT "HELLO"
@@ -47,195 +47,162 @@ I typed my first program:
 RUN
 ```
 
-The screen filled with "HELLO" over and over. I was hooked.
+The screen filled up. HELLO HELLO HELLO HELLO. My dad looked over my shoulder and said something like "that's clever" and went back to his Christmas lunch. But I sat there, cross-legged on the carpet in the Durban heat — Christmas in the southern hemisphere, thirty-something degrees outside — staring at the telly, and thought: *I can make this thing do anything.*
+
+I was wrong about that, obviously. You can't make 1K do anything. But I didn't know that yet. And the Zaks book sat on the carpet next to me, waiting.
 
 ---
 
-## The 1K Problem
+## The 1K Wall
 
-The ZX81 came with 1 kilobyte of RAM. One thousand and twenty-four bytes. To understand how little that is:
+The ZX81 came with 1 kilobyte of RAM. I didn't properly understand what that meant at first. I just knew that after typing in about fifteen lines of BASIC, the machine would print `4/MEMORY FULL` at me and refuse to do any more.
 
-- This paragraph is about 300 bytes
-- A single smartphone photo is about 3,000,000 bytes
-- The ZX81 had roughly enough memory for three tweets
+So my first few programs were tiny. Number guessing games. A thing that drew random patterns with PLOT. A program that printed my name in a loop, which I thought was hilarious for about ten minutes. The usual stuff.
 
-Of that 1K, the system variables consumed 125 bytes, the display file needed at least 25 bytes (more if you actually wanted to show anything on screen), and the BASIC program itself took up space. A simple 10-line BASIC program could easily use half the available memory.
+But I wanted more. I wanted to make a game that was actually *good*. Not just random dots or guessing numbers. Something with a board, and pieces, and an opponent. Something like chess.
 
-The result: most serious programs were about 10-20 lines of BASIC. Games were tiny. The classic "1K games" from the ZX81 era were marvels of compression - simple but playable. A maze game. A space invader. A number guessing game.
-
-But I wanted to write a chess game.
-
-Everyone said it was impossible.
+I mentioned this to my dad. He thought about it for a while and then said I'd need to learn machine code. I didn't know what machine code was. He didn't really either, to be honest, but he knew it was faster and smaller than BASIC.
 
 ---
 
-## The Book That Changed Everything
+## The Book
 
-My birthday was in March. I asked for one thing: **"Mastering Machine Code on Your ZX81" by Toni Baker** (published by Reston Publishing / Interface Publications, 1983).
+The Zaks book. I didn't open it properly until a few days after Christmas — I was too busy typing in BASIC programs. But when I did open it, I couldn't stop.
 
 ```
   _________________________
  |  _____________________  |
  | |                     | |
- | |  MASTERING          | |
- | |  MACHINE CODE       | |
- | |  ON YOUR            | |
- | |  ZX81               | |
+ | |  PROGRAMMING        | |
+ | |  THE Z80            | |
  | |                     | |
- | |  Toni Baker         | |
+ | |  Rodnay Zaks        | |
+ | |                     | |
+ | |  SYBEX              | |
  | |_____________________| |
  |_________________________|
 
-  (The book that launched
-   a thousand programs)
+  624 pages. The Bible.
 ```
 
-This book was a revelation. Toni Baker had an extraordinary gift for explaining the Z80 processor in terms a teenager could understand. She didn't talk down to you, but she didn't assume you had a computer science degree either. She started with the basics - what a register is, what the program counter does, how binary arithmetic works - and built up to writing real machine code programs.
+It wasn't a ZX81-specific book — it was a proper Z80 reference, written for anyone programming the Z80 processor, whether that was in a Sinclair, a CP/M machine, or an industrial controller. It covered everything from basic binary arithmetic right through to interrupt handling and I/O operations. The third revised edition, published by Sybex. Probably the most important book I've ever owned.
 
-The key insight, the one that changed everything for me, was on page 47:
+Chapter 1 started with number representation. Binary, hexadecimal, BCD. And then two's complement.
 
-> *"A REM statement in BASIC is simply a section of memory that the BASIC interpreter ignores. But the Z80 processor doesn't know what a REM statement is. If you POKE machine code into a REM statement and then call it with USR, the processor will execute it as if it were any other program."*
+I remember sitting at the kitchen table with a pencil and graph paper, working through the exercises. *What is the two's complement of +16? Of -17? Of -18?* The book walked you through it methodically. It wasn't dumbed down, but it was clear. Zaks had a way of building concepts one on top of the next, so by the time you got to something complicated, you'd already done all the groundwork.
 
-A REM statement. The BASIC interpreter skips over anything after REM - it's a comment, meant for humans. But if you filled it with machine code bytes and then jumped to it with `RAND USR`, the Z80 would happily execute those bytes as instructions.
+The two's complement stuff stuck with me. Not just because it was clever — though it is clever, the way you can add and subtract signed numbers without worrying about the sign — but because it was the first time I realised that a computer doesn't think in the way people imagine. It doesn't know what "negative" means. It just flips bits and adds them up. The meaning is something we impose on the numbers. That idea opened a door in my head that never closed.
 
-This was the key to fitting a real program in 1K. No BASIC interpreter overhead. No tokenised keywords eating up precious bytes. Just raw Z80 instructions, pretending to be a comment.
+I also had access to an IBM reference manual — I can't remember exactly which one, something from my dad's work, probably a System/360 principles of operation manual or one of the training textbooks. It had a more formal treatment of two's complement arithmetic and binary representations. Between that and the Zaks book, I had a decent grounding in how numbers actually work at the hardware level, even if I was only twelve.
 
 ---
 
-## Learning Z80: The Hard Way
+## Learning Z80 the Hard Way
 
-There was no assembler for the ZX81. Not one I could afford, anyway, and certainly nothing that would run in 1K. So I did what Toni Baker's book taught me to do: I assembled the code **by hand**.
+The Zaks book wasn't specifically about the ZX81. That was both a problem and an advantage. It didn't tell me where to POKE things or how the display file worked. But it gave me a thorough understanding of the Z80 instruction set — every opcode, every addressing mode, every flag bit.
 
-This meant:
-1. Write the Z80 mnemonics on paper (LD A, 42 / CP 64 / JR NZ, $F6)
-2. Look up each instruction in the opcode table at the back of the book
-3. Write down the hex bytes (3E 2A / FE 40 / 20 F6)
-4. Calculate the relative jump offsets by hand
+For the ZX81-specific bits, I picked up what I could from magazines and other kids' programs. The key trick — the one that made everything possible — was the REM statement hack.
+
+The idea is dead simple: the BASIC interpreter skips over anything after REM. But the Z80 processor doesn't know what REM is. If you fill a REM statement with machine code bytes and then jump to them with `RAND USR`, the processor will happily execute them. Your entire program can hide inside a BASIC comment.
+
+I don't remember exactly where I first learned that trick. It was common knowledge among ZX81 hackers by 1982. Might have been a magazine, might have been another kid at school. In Durban there was a small but dedicated group of us who had these machines, and we traded tips the way other kids traded football stickers.
+
+There was no assembler. Not one I could afford, and certainly nothing that would run in 1K. So I assembled the code by hand. That meant:
+
+1. Write the Z80 mnemonics on paper (LD A, 42 / CP 64 / JR NZ, -4)
+2. Look up each instruction in the opcode table at the back of the Zaks book
+3. Write down the hex bytes (3E 2A / FE 40 / 20 FC)
+4. Calculate the jump offsets by hand (counting bytes forward or backward)
 5. Double-check everything
-6. Type the bytes into the ZX81 using POKE commands
-7. Pray
+6. Type the bytes into the ZX81 using POKE commands from the keyboard
+7. Hold your breath and type RAND USR 16514
 
-Step 7 was important because one wrong byte - one single wrong byte - and the ZX81 would crash. Not a polite error message. Not a helpful debugger. A crash. Screen goes mental, strange patterns appear, and you're back to the K cursor having lost everything you'd typed in because there was no auto-save.
+If it worked, you got your program. If you'd got one byte wrong — one single byte — the ZX81 would crash. Not a polite error message. A hard crash. The screen would go mental, garbage characters everywhere, and you'd be back to the K cursor having lost everything you hadn't saved to tape. And saving to tape meant fiddling with a portable cassette recorder, hoping the heads were clean and the volume was right.
 
 ```
-  POKE 16514, 33        (LD HL, ...)
-  POKE 16515, 130       (low byte)
-  POKE 16516, 64        (high byte)
-  POKE 16517, 6         (LD B, 64)
+  POKE 16514, 33
+  POKE 16515, 130
+  POKE 16516, 64
+  POKE 16517, 6
   POKE 16518, 64
-  POKE 16519, 175       (XOR A)
-  POKE 16520, 119       (LD (HL), A)
-  POKE 16521, 35        (INC HL)
-  POKE 16522, 16        (DJNZ ...)
-  POKE 16523, 252       (-4 in two's complement)
+  POKE 16519, 175
   ...
-  ...
-  ... (672 bytes later) ...
+  ... 672 bytes ...
   ...
   RAND USR 16514
 ```
 
-If it worked, chess. If it didn't, crash. There was no middle ground.
+That was the process. One byte at a time.
 
 ---
 
-## The Design Process
+## The Chess Game
 
-I filled an entire school exercise book with the chess program design. Diagrams of the board representation. Tables of piece movements. Flowcharts for the move generation algorithm. Columns of hex bytes with arrows showing the jumps and calls.
+By 1983 I was fourteen and I'd been programming the ZX81 for two years. I'd written loads of small programs — games, utilities, graphics demos. But the chess game was the one I really wanted to do. The one everyone said couldn't be done.
 
-The biggest challenge was **fitting everything in 672 bytes**. That was the budget: 1024 bytes total, minus 125 for system variables, minus 25 for the display file, minus about 200 for the collapsed display during gameplay, minus the 6-byte overhead for the BASIC lines. It worked out to roughly 672 bytes for the machine code *including* the 64-byte chess board.
+I filled a school exercise book with the design. Diagrams of the board representation. Tables of piece movements. I'd worked out how to encode each piece in a single byte (bits 0-2 for the type, bit 3 for the colour). I'd figured out the direction offsets for each piece type. I knew I needed about 64 bytes for the board and that left me roughly 600 bytes for everything else.
 
-### Key Design Decisions
+The constraints were brutal:
 
-**Decision 1: The board lives inside the REM statement**
+- No castling (40 bytes I couldn't spare)
+- No en passant (another 30 bytes)
+- No real check detection (80+ bytes)
+- No opening book (forget it)
+- Minimal input validation (the player can cheat — that's on them)
 
-I realised that the 64 bytes at the start of the REM statement could be the chess board itself. The machine code entry point jumps past the board data to the actual code. This saved having a separate board area - the board WAS the code. Sort of.
+The computer's "AI" was the hardest part. I spent ages working out how to generate moves for all the piece types efficiently. The breakthrough was using a bitmask to share one sliding loop between the Bishop, Rook, and Queen — that saved about 30 bytes, which doesn't sound like much until you realise the entire program is 672 bytes.
 
-**Decision 2: Trust the player**
+### Three Evenings
 
-Full move validation for chess is complex. Legal move generation for every piece type, check detection, pin detection, castling rules, en passant... each of these would cost 30-80 bytes. I couldn't afford any of it.
+It took three evenings to type in the machine code. I'd come home from school, do my homework (or claim to), and sit in front of the ZX81 typing POKE commands.
 
-So I made a decision that horrified my chess-playing friends: **the player is responsible for making legal moves**. The program checks that you're moving your own piece and not landing on your own piece. That's it. You can move your King across the board in one step if you want to. You're cheating yourself.
+On the first evening I got the board display working. The pieces showed up on screen — white pieces in normal video, black pieces in inverse. It was wonky at first (I had the ranks upside down), but when I fixed it and saw a proper chess board on our family telly, I nearly fell off my chair.
 
-**Decision 3: King capture = checkmate**
+On the second evening I got the player input working. Type E2, type E4, and the pawn moves. That moment — seeing a chess piece actually move on screen because of code I'd written — I can still feel that. It was like electricity.
 
-Real chess ends when a King is in checkmate. Detecting checkmate requires checking if the King is in check, if any move can block the check, if the King can escape... easily 100 bytes.
-
-Instead, the game simply ends when a King is captured. Yes, this means you can technically move into check, and the computer might not notice. But in practice, the computer WILL take your King if you leave it hanging, because its evaluation function values the King at 50 points.
-
-**Decision 4: One-ply search**
-
-The computer looks one move ahead. That's it. It evaluates every possible move and picks the one that captures the most valuable piece (or makes a non-capture move if nothing's hanging).
-
-This means it has no concept of tactics, combinations, or strategy. It won't set up forks, pins, or skewers. But it will always take a free piece, and it will prefer taking your Queen over taking a Pawn.
-
-Surprisingly, this is enough to give a beginner a reasonable game. Novice players leave pieces hanging all the time, and a computer that always punishes that is tougher than you'd think.
-
----
-
-## Three Evenings
-
-It took three evenings to type in the machine code. Three evenings of:
-
-```
-POKE 16523, 252
-```
-
-*Is that right? Check the notebook. Yes, 252. DJNZ backwards 4 bytes. Two's complement of -4 is... 256 - 4 = 252. Yes.*
-
-```
-POKE 16524, 33
-```
-
-*LD HL, nn. Next two bytes are the address, low byte first...*
-
-My mum kept calling me for dinner. "Just five more bytes, Mum!"
-
-On the first evening, I entered about 200 bytes and tested it. The board displayed! It was wonky - the pieces were in the wrong places - but the display routine worked. I saved to tape (recording machine code to a portable cassette recorder, with all the attendant SCREEEEE sounds) and went to bed buzzing.
-
-On the second evening, I got the player input working. You could type E2 E4 and the piece would move. The thrill of seeing that first pawn advance was indescribable. It was like the first time I'd made the TV show "HELLO", but multiplied by a thousand.
-
-On the third evening, I entered the computer's thinking routine. This was the big one - about 250 bytes of move generation, evaluation, and selection code. I'd checked and rechecked the hex bytes against my notebook. I typed in the last POKE, saved to tape twice (paranoia), and typed:
+On the third evening, the computer's thinking routine. About 250 bytes of move generation and evaluation. I'd checked and rechecked the hex against my notebook. Typed in the last POKE. Saved to tape. Saved to tape again, on a different cassette, because I wasn't stupid. Then:
 
 ```
 RAND USR 16514
 ```
 
-The board appeared. I played E2 E4. The computer "thought" for about two seconds (at 3.25 MHz, scanning 64 squares and generating moves took a noticeable moment), and then it played D7 D5.
+The board appeared. I played E2 E4. The computer thought for maybe two seconds, and played D7 D5.
 
-The Scandinavian Defence.
+I didn't know the name for it then, but that's the Scandinavian Defence. The computer chose it because it could recapture with the queen if I took the pawn. It was *thinking*. Not well, not deeply, but it was looking at the board and making decisions based on what it saw.
 
-I stared at the screen. The computer had made a real chess move. A named opening. It wasn't a coincidence - the computer chose D5 because it could immediately recapture with the Queen if I took the pawn. It was *thinking*.
-
-I played D2 D4. The computer played E7 E5. It was improvising, but it was making moves that made sense. When I left a piece hanging, it took it. When I tried to trade pieces, it chose the trade that benefited it.
-
-It wasn't Deep Blue. It wasn't even particularly good chess. But it was MY chess program, running in 1K of RAM, playing chess against me on a computer that cost less than a bicycle.
-
-I was 14 years old, and I had taught a pile of silicon to play chess.
+I played it for hours that night. The computer wasn't good — it only looks one move ahead, so it can't see traps or plan combinations — but it always took my pieces if I left them hanging, and it put up a real fight. My mate Steven came round and played it and said "that's actually not bad" which, from Steven, was basically a standing ovation.
 
 ---
 
-## What Happened Next
+## What Happened After
 
-I showed it to everyone who would look. My mates at school were suitably impressed (most of them were still writing 10 PRINT "BUM" / 20 GOTO 10). My CS teacher, Mr. Henderson, spent his lunch break playing it and declared it "remarkable" - the highest praise he ever gave anything.
+Eventually I got a 16K RAM pack — the big grey block that wobbled in its connector and crashed the machine if you breathed on it. I moved on to bigger programs. The chess game stayed on a C15 cassette tape that I labelled "CHESS" in biro. The tape went into a shoebox, the shoebox went under my bed, and it followed me through a house move and eventually out of Durban altogether.
 
-I sent a description to *Sinclair User* magazine but never heard back. I suspect they had already seen David Horne's 1K ZX Chess by then (published in 1983, and a much more polished program than mine - David was a professional programmer, I was a kid with a book).
+I found the cassette years later. But by then the tape was degraded beyond loading, and the exercise book with the hex dump was long gone. I think it ended up levelling a table in my first flat in Johannesburg. The code lived on only in my memory, and memory is a lousy storage medium.
 
-Eventually, I got a 16K RAM pack and moved on to bigger programs. The chess game lived on a C15 cassette tape, which lived in a shoebox, which lived under my bed, which moved with me through two house moves and a decade of growth.
-
-I found the cassette again years later, but by then the ZX81 was in a museum and the tape was too degraded to load. The code existed only in my exercise book, which I'd used to level a wobbly table in my first flat and subsequently lost.
-
-This repository is my attempt to reconstruct it. The code here is based on what I remember and what I've learned since. The spirit is the same: every byte counts, every trick is fair game, and the goal is to make the impossible merely very difficult.
+This repository is my attempt to reconstruct it. The code here is based on what I remember and what I've learned since — some of the tricks are exactly as I did them, others are probably better than what fourteen-year-old me managed. But the spirit is the same: every byte counts, every trick is fair game, and the whole thing has to fit in 1K.
 
 ---
 
-## To Every Kid With a ZX81
+## The Book, Revisited
 
-If you're 14 years old and you've just got a computer and you're wondering if you can make it do something amazing: yes. You can. It doesn't matter if your computer has 1K or 1TB. The magic isn't in the hardware.
+I still have my copy of Zaks somewhere. The spine is cracked and several pages are loose. There are pencil annotations in the margins — opcode mnemonics I was trying to memorise, tiny notes in my teenage handwriting. Page 47 has a coffee ring on it from my dad's mug.
 
-The magic is that feeling when the cursor blinks and you type RUN and something you built from nothing comes alive on the screen.
+The Zaks book wasn't written for kids. It was written for engineers and professional programmers. But it was *clear*, and that was what mattered. It didn't patronise, but it didn't assume you already knew everything either. It built up from first principles — bits, bytes, two's complement, registers, memory, instructions — and by the time you reached the advanced chapters on interrupt handling, you actually understood what you were reading.
 
-That feeling hasn't changed in forty years. I hope it never does.
+If I'm honest, I probably understood about 60% of the book at age twelve. By fourteen, maybe 80%. The remaining 20% I figured out over the next few decades, usually by getting things wrong and then going back to Zaks to find out what I should have done.
+
+624 pages. Not a wasted one.
+
+---
+
+## To Every Kid Sitting Cross-Legged on the Carpet
+
+If you're twelve or fourteen and you've got a computer and you're wondering whether you can make it do something amazing: yes. You can.
+
+It doesn't matter if your machine has 1K or 1TB. It doesn't matter if you're in Durban or Dublin or Dallas. It doesn't matter if you're learning from a 624-page reference book or a YouTube video. The fundamentals are the same. Bits, logic, persistence.
+
+The magic is that moment when you type RUN and something you built from nothing comes alive on the screen. That hasn't changed in forty-odd years. I hope it never does.
 
 ---
 
@@ -259,6 +226,8 @@ That feeling hasn't changed in forty years. I hope it never does.
   +-+-+-+-+-+-+-+-+
    A B C D E F G H
 
-  (Sometimes the best games
-   end with a lone King.)
+  Sometimes the best games
+  end with a lone King
+  and a kid who wouldn't
+  give up.
 ```

@@ -397,8 +397,14 @@ This is why the BASIC program is kept to exactly 2 lines, the display is rebuilt
 
 ### Books (Original 1980s Publications)
 
+- **"Programming the Z80"** by Rodnay Zaks (Sybex, 1st ed. 1979, 3rd rev. ed. 1982)
+  - THE book for Z80 machine code. 624 pages of everything you need.
+  - Not ZX81-specific, but covers the Z80 processor thoroughly
+  - Available second-hand, and as a PDF from z80.info
+
 - **"Mastering Machine Code on Your ZX81"** by Toni Baker (1983)
-  - THE book for ZX81 machine code. Clear, progressive, brilliant.
+  - Excellent ZX81-specific machine code guide
+  - More accessible than Zaks for absolute beginners
   - Available second-hand on eBay and AbeBooks
 
 - **"Understanding Your ZX81 ROM"** by Dr. Ian Logan (1982)

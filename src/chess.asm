@@ -9,9 +9,9 @@
 ;   Target: Sinclair ZX81 (Timex Sinclair 1000) with 1024 bytes RAM
 ;   CPU: Zilog Z80A @ 3.25 MHz
 ;
-;   (c) 1983 - Originally hand-assembled with pencil, paper,
-;   and a well-thumbed copy of "Mastering Machine Code on Your ZX81"
-;   by Toni Baker
+;   (c) 1983 - Originally hand-assembled in Durban, South Africa
+;   with pencil, graph paper, and a well-thumbed copy of
+;   "Programming the Z80" by Rodnay Zaks (Sybex, 3rd revised ed.)
 ;
 ; ============================================================================
 ;
@@ -1112,7 +1112,7 @@ print_msg:
 ; BUILD INSTRUCTIONS:
 ;
 ; This was originally hand-assembled (yes, really - with a pencil
-; and the opcode table from Toni Baker's book). To assemble with
+; and the opcode table from the Zaks book). To assemble with
 ; a modern assembler:
 ;
 ;   z80asm -o chess.bin chess.asm
