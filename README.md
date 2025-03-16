@@ -171,13 +171,17 @@ It won't win any tournaments, but it will:
 
 ## Historical Context
 
-The ZX81 was released by Sinclair Research in March 1981. With its membrane keyboard, 1K of RAM, and a TV for a monitor, it brought computing to hundreds of thousands of people who could never have afforded a "real" computer.
+The ZX81 was released by Sinclair Research in March 1981. With its membrane keyboard, 1K of RAM, and a TV for a monitor, it brought computing to hundreds of thousands of people — from London to Durban — who could never have afforded a "real" computer.
 
-The idea that you could fit a chess game - even a basic one - into 1K of RAM was considered remarkable. The entire program, including the board state, display routines, input handling, and computer opponent, must coexist in 1024 bytes alongside the system variables and display file.
+The idea that you could fit a chess game into 1K of RAM was considered somewhere between ambitious and daft. The entire program — board state, display routines, input handling, and a computer opponent — has to coexist in 1024 bytes alongside the system variables and display file. There's no room for elegance. There's barely room for anything.
+
+This particular version was originally written in 1983 by a fourteen-year-old in Durban, South Africa, hand-assembled with pencil and graph paper from Rodnay Zaks' *Programming the Z80* (Sybex, 624 pages of Z80 enlightenment). The code was typed into the machine one POKE command at a time over three evenings, and saved to a C15 cassette tape that eventually degraded beyond recovery.
+
+This repository is a reconstruction from memory.
 
 For context, this README file is about 8 kilobytes. The entire chess game would fit in the first few paragraphs.
 
-See **[docs/MY-STORY.md](docs/MY-STORY.md)** for the story of how this game came to be.
+See **[docs/MY-STORY.md](docs/MY-STORY.md)** for the full story.
 
 ---
 
