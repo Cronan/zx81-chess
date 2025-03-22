@@ -9,9 +9,11 @@
 ;   Target: Sinclair ZX81 (Timex Sinclair 1000) with 1024 bytes RAM
 ;   CPU: Zilog Z80A @ 3.25 MHz
 ;
-;   (c) 1983 - Originally hand-assembled in Durban, South Africa
-;   with pencil, graph paper, and a well-thumbed copy of
-;   "Programming the Z80" by Rodnay Zaks (Sybex, 3rd revised ed.)
+;   Original concept: 1982-83, hand-assembled in Durban, South Africa
+;   by a kid with pencil, graph paper, and Rodnay Zaks' book.
+;   This version: a complete rewrite as an adult, in the spirit
+;   of the original. The tape is gone. The notebook is gone.
+;   The feeling of fitting chess into 1K is exactly the same.
 ;
 ; ============================================================================
 ;
@@ -1111,8 +1113,8 @@ print_msg:
 ;
 ; BUILD INSTRUCTIONS:
 ;
-; This was originally hand-assembled (yes, really - with a pencil
-; and the opcode table from the Zaks book). To assemble with
+; The 1983 original was hand-assembled with pencil and the opcode
+; table from the Zaks book. This rewrite can be assembled with
 ; a modern assembler:
 ;
 ;   z80asm -o chess.bin chess.asm

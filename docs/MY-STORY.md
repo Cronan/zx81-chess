@@ -61,7 +61,11 @@ So my first few programs were tiny. Number guessing games. A thing that drew ran
 
 But I wanted more. I wanted to make a game that was actually *good*. Not just random dots or guessing numbers. Something with a board, and pieces, and an opponent. Something like chess.
 
-I mentioned this to my dad. He thought about it for a while and then said I'd need to learn machine code. I didn't know what machine code was. He didn't really either, to be honest, but he knew it was faster and smaller than BASIC.
+Chess was important to me. My dad had taught me to play when I was small — I don't remember exactly when, maybe seven or eight — and by the time I was eleven I could beat him every time. He didn't let me win, either. I just got better. There's something about chess that suited my brain: the patterns, the logic, the way you have to think several steps ahead. It's a lot like programming, actually, though I didn't make that connection until years later.
+
+So when I thought about what I wanted to make the ZX81 do, chess was the obvious answer. Not because it was easy — even I knew it wasn't easy — but because it mattered to me. The idea of teaching a computer to play chess, *my* computer, the one sitting on the carpet next to the telly — that was irresistible.
+
+My dad, when I told him what I wanted to do, thought about it for a while and then said I'd need to learn machine code. I didn't know what machine code was. He didn't really either, to be honest, but he knew it was faster and smaller than BASIC. That was the conversation that led to the Zaks book appearing at Christmas.
 
 ---
 
@@ -105,7 +109,9 @@ For the ZX81-specific bits, I picked up what I could from magazines and other ki
 
 The idea is dead simple: the BASIC interpreter skips over anything after REM. But the Z80 processor doesn't know what REM is. If you fill a REM statement with machine code bytes and then jump to them with `RAND USR`, the processor will happily execute them. Your entire program can hide inside a BASIC comment.
 
-I don't remember exactly where I first learned that trick. It was common knowledge among ZX81 hackers by 1982. Might have been a magazine, might have been another kid at school. In Durban there was a small but dedicated group of us who had these machines, and we traded tips the way other kids traded football stickers.
+I don't remember exactly where I first learned that trick. Might have been one of the magazines my dad occasionally brought home. It wasn't from another programmer — I didn't know a single other person who programmed. Not one. No school computer club, no friends with ZX81s, no local user group. This was Durban in 1982, not Silicon Valley. There was no Internet. There was me, the Zaks book, and whatever I could glean from the occasional copy of *Your Computer* or *Sinclair User* that made it to South Africa.
+
+Everything I learned, I learned alone. Looking back, that was probably both the hardest and the most important part. When there's nobody to ask, you have to figure things out for yourself. And when you figure something out for yourself, it stays figured out.
 
 There was no assembler. Not one I could afford, and certainly nothing that would run in 1K. So I assembled the code by hand. That meant:
 
@@ -138,9 +144,11 @@ That was the process. One byte at a time.
 
 ## The Chess Game
 
-By 1983 I was fourteen and I'd been programming the ZX81 for two years. I'd written loads of small programs — games, utilities, graphics demos. But the chess game was the one I really wanted to do. The one everyone said couldn't be done.
+The chess game wasn't a weekend project. It took the better part of two years.
 
-I filled a school exercise book with the design. Diagrams of the board representation. Tables of piece movements. I'd worked out how to encode each piece in a single byte (bits 0-2 for the type, bit 3 for the colour). I'd figured out the direction offsets for each piece type. I knew I needed about 64 bytes for the board and that left me roughly 600 bytes for everything else.
+I started thinking about it seriously in mid-1982, maybe six months after getting the ZX81. By then I'd written loads of small programs — games, utilities, graphics demos — and I understood the machine well enough to know what was possible and what wasn't. But chess was different. Chess was the thing everyone said couldn't be done in 1K. That, obviously, made me want to do it more.
+
+I filled a school exercise book with the design. Page after page of diagrams, tables, calculations. How to represent the board. How to encode each piece in a single byte (bits 0-2 for the type, bit 3 for the colour). Direction offsets for each piece type. Memory budgets scribbled in the margins, adding up the same numbers over and over, trying to make it all fit. I knew I needed about 64 bytes for the board and that left me roughly 600 bytes for everything else.
 
 The constraints were brutal:
 
@@ -150,17 +158,19 @@ The constraints were brutal:
 - No opening book (forget it)
 - Minimal input validation (the player can cheat — that's on them)
 
-The computer's "AI" was the hardest part. I spent ages working out how to generate moves for all the piece types efficiently. The breakthrough was using a bitmask to share one sliding loop between the Bishop, Rook, and Queen — that saved about 30 bytes, which doesn't sound like much until you realise the entire program is 672 bytes.
+The computer's "AI" was the hardest part. I spent months — on and off, between school and homework and being a teenager — working out how to generate moves for all the piece types efficiently. The breakthrough was using a bitmask to share one sliding loop between the Bishop, Rook, and Queen. That saved about 30 bytes, which doesn't sound like much until you realise the entire program is 672 bytes. I remember the moment I figured that trick out. I was on the bus home from school and I nearly shouted.
 
-### Three Evenings
+### Writing It, Breaking It, Fixing It
 
-It took three evenings to type in the machine code. I'd come home from school, do my homework (or claim to), and sit in front of the ZX81 typing POKE commands.
+The actual coding happened in fits and starts over months. I'd write a section on paper — hand-assemble it from the Zaks opcode tables — then type in the bytes and test it. More often than not, it would crash. One wrong byte and the ZX81 just died on you. No error message, no debugger. Just garbage on the telly and that sinking feeling.
 
-On the first evening I got the board display working. The pieces showed up on screen — white pieces in normal video, black pieces in inverse. It was wonky at first (I had the ranks upside down), but when I fixed it and saw a proper chess board on our family telly, I nearly fell off my chair.
+The board display came first. Weeks of getting the piece characters right, figuring out how to write directly to the display file, getting the ranks the right way up (I had them upside down for an embarrassingly long time). But when I finally saw a proper chess board on our family telly — white pieces in normal video, black pieces in inverse — I nearly fell off my chair.
 
-On the second evening I got the player input working. Type E2, type E4, and the pawn moves. That moment — seeing a chess piece actually move on screen because of code I'd written — I can still feel that. It was like electricity.
+Player input came next. Type E2, type E4, and the pawn moves. That moment — seeing a chess piece actually move on screen because of code I'd written, bytes I'd assembled by hand on paper — I can still feel that. It was like electricity.
 
-On the third evening, the computer's thinking routine. About 250 bytes of move generation and evaluation. I'd checked and rechecked the hex against my notebook. Typed in the last POKE. Saved to tape. Saved to tape again, on a different cassette, because I wasn't stupid. Then:
+The thinking routine was the mountain. About 250 bytes of move generation and evaluation, and every bug was agony to track down. I'd check and recheck the hex against my notebook, staring at columns of numbers until my eyes went funny. By the time I got it working properly, it was well into 1983. I was fourteen.
+
+I typed in the last POKE. Saved to tape. Saved to tape again, on a different cassette, because I wasn't stupid. Then:
 
 ```
 RAND USR 16514
@@ -170,17 +180,31 @@ The board appeared. I played E2 E4. The computer thought for maybe two seconds, 
 
 I didn't know the name for it then, but that's the Scandinavian Defence. The computer chose it because it could recapture with the queen if I took the pawn. It was *thinking*. Not well, not deeply, but it was looking at the board and making decisions based on what it saw.
 
-I played it for hours that night. The computer wasn't good — it only looks one move ahead, so it can't see traps or plan combinations — but it always took my pieces if I left them hanging, and it put up a real fight. My mate Steven came round and played it and said "that's actually not bad" which, from Steven, was basically a standing ovation.
+I played it for hours that night. Then I played my dad. He didn't really understand what he was looking at — inverse video characters on a wobbly black-and-white telly — but he played along. When the computer took his bishop, he looked at me and said, "It's actually quite good, isn't it?" Coming from my dad, the man who'd taught me chess, that meant everything.
+
+The computer wasn't good. It only looks one move ahead, so it can't see traps or plan combinations. But it always took your pieces if you left them hanging, and it put up a real fight against a casual player. Against me it didn't stand a chance — I could see too far ahead for it. But against someone who wasn't paying attention, it'd punish every mistake. That felt right. That felt like the chess my dad had taught me: pay attention, or you'll lose your queen.
 
 ---
 
 ## What Happened After
 
-Eventually I got a 16K RAM pack — the big grey block that wobbled in its connector and crashed the machine if you breathed on it. I moved on to bigger programs. The chess game stayed on a C15 cassette tape that I labelled "CHESS" in biro. The tape went into a shoebox, the shoebox went under my bed, and it followed me through a house move and eventually out of Durban altogether.
+Eventually I got a 16K RAM pack — the big grey block that wobbled in its connector and crashed the machine if you breathed on it. With 16K the world opened up. I could write proper programs, with variables and loops and strings and everything. I moved on, the way you do.
 
-I found the cassette years later. But by then the tape was degraded beyond loading, and the exercise book with the hex dump was long gone. I think it ended up levelling a table in my first flat in Johannesburg. The code lived on only in my memory, and memory is a lousy storage medium.
+The chess game stayed on a C15 cassette tape that I labelled "CHESS" in biro. The tape went into a shoebox, the shoebox went under my bed, and it followed me through a house move and eventually out of Durban altogether.
 
-This repository is my attempt to reconstruct it. The code here is based on what I remember and what I've learned since — some of the tricks are exactly as I did them, others are probably better than what fourteen-year-old me managed. But the spirit is the same: every byte counts, every trick is fair game, and the whole thing has to fit in 1K.
+I found the cassette years later. But by then the tape was degraded beyond loading, and the exercise book with the hex dump was long gone. I think it ended up levelling a table in my first flat in Johannesburg. The code existed only in my memory, and memory — as any ZX81 programmer can tell you — is a lousy storage medium.
+
+---
+
+## About This Repository
+
+I want to be honest about something. **This is not the code I wrote in 1982-83.** That code is gone. The tape is unreadable, the notebook is lost, and I can't reconstruct 672 bytes of hand-assembled Z80 from forty-year-old memories.
+
+What this repository contains is a **complete rewrite**, done by me as an adult, in the spirit of that twelve-year-old kid sitting cross-legged on the carpet in Durban. I've tried to stay true to what I remember of the original design — the board encoding, the direction tables, the REM statement hack, the general shape of the AI. Some of the tricks in here are ones I genuinely used back then. Others are probably better than what teenage me managed, because I've had decades of programming experience since, and it would be dishonest to pretend otherwise.
+
+But the constraints are real. 1K of RAM. The Z80A instruction set. Every byte earned. And the feeling — that same feeling of making something impossible fit into something tiny — that hasn't changed at all. I still get the same buzz from shaving a byte off a routine that I got in 1983, and I suspect I always will.
+
+This is my love letter to the kid I was, the machine that started everything, and the 624-page book that taught me how computers actually think.
 
 ---
 
@@ -198,9 +222,11 @@ If I'm honest, I probably understood about 60% of the book at age twelve. By fou
 
 ## To Every Kid Sitting Cross-Legged on the Carpet
 
-If you're twelve or fourteen and you've got a computer and you're wondering whether you can make it do something amazing: yes. You can.
+If you're twelve or fourteen and you've got a computer and you're wondering whether you can make it do something amazing: yes. You can. Even if there's nobody around to help you. Even if you're the only person you know who does this. *Especially* then.
 
-It doesn't matter if your machine has 1K or 1TB. It doesn't matter if you're in Durban or Dublin or Dallas. It doesn't matter if you're learning from a 624-page reference book or a YouTube video. The fundamentals are the same. Bits, logic, persistence.
+I learned to program entirely on my own, in a city where I didn't know a single other programmer, with no Internet, no mentor, no community. Just a machine, a book, and the stubbornness to keep going when things crashed. And things crashed a lot.
+
+It doesn't matter if your machine has 1K or 1TB. It doesn't matter if you're learning from a 624-page reference book or a YouTube video. The fundamentals are the same. Bits, logic, persistence. The willingness to sit with a problem until it gives in.
 
 The magic is that moment when you type RUN and something you built from nothing comes alive on the screen. That hasn't changed in forty-odd years. I hope it never does.
 
