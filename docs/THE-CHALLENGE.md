@@ -259,7 +259,7 @@ The Z80 has a limited set of registers: A, B, C, D, E, H, L (plus the shadow set
 
 We systematically reuse registers for different purposes at different points in the code. The `E` register holds the current square number throughout the move generation phase. The `C` register holds the target square. The `D` register switches between piece type and direction offset.
 
-This kind of register planning was done entirely on paper, tracking which registers were "live" at each point in the code. Modern compilers do this automatically. In 1983, I did it with coloured pencils and a lot of crossing out.
+This kind of register planning was done entirely on paper, tracking which registers were "live" at each point in the code. Modern compilers do this automatically. In 1982-83, a kid in Durban did it with coloured pencils and a lot of crossing out. (This rewrite benefits from decades of hindsight, but the technique is the same.)
 
 ---
 
@@ -353,7 +353,7 @@ With modern Z80 optimisation knowledge, yes. Some ideas for a hypothetical v2:
 
 - **2-ply search**: By sacrificing some display quality (smaller board, fewer labels), we might squeeze in a 2-ply minimax. This would dramatically improve play quality.
 
-But these are all "what ifs". In 1983, with a pencil and a book, 672 bytes of working chess was plenty good enough.
+But these are all "what ifs". The original 1982-83 version was written by a teenager with a pencil and a book, and 672 bytes of working chess was plenty good enough. This rewrite applies some of those optimisation ideas — but it's still 1K, and that's still the point.
 
 ---
 

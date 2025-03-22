@@ -175,9 +175,9 @@ The ZX81 was released by Sinclair Research in March 1981. With its membrane keyb
 
 The idea that you could fit a chess game into 1K of RAM was considered somewhere between ambitious and daft. The entire program — board state, display routines, input handling, and a computer opponent — has to coexist in 1024 bytes alongside the system variables and display file. There's no room for elegance. There's barely room for anything.
 
-This particular version was originally written in 1983 by a fourteen-year-old in Durban, South Africa, hand-assembled with pencil and graph paper from Rodnay Zaks' *Programming the Z80* (Sybex, 624 pages of Z80 enlightenment). The code was typed into the machine one POKE command at a time over three evenings, and saved to a C15 cassette tape that eventually degraded beyond recovery.
+The original version of this game was written over the course of 1982-83 by a kid in Durban, South Africa, who'd taught himself Z80 machine code from Rodnay Zaks' *Programming the Z80* (Sybex, 624 pages). He was twelve when he started, fourteen when he got it working. The code was hand-assembled with pencil and graph paper, typed into the machine one POKE command at a time, and saved to a C15 cassette tape that eventually degraded beyond recovery.
 
-This repository is a reconstruction from memory.
+**This repository is not that original code.** That code is lost. This is a complete rewrite, done as an adult, in the spirit of that kid. The constraints are real — 1K, Z80A, every byte earned — but the implementation benefits from decades of hindsight. See [docs/MY-STORY.md](docs/MY-STORY.md) for the honest version.
 
 For context, this README file is about 8 kilobytes. The entire chess game would fit in the first few paragraphs.
 
