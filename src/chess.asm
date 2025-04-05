@@ -226,7 +226,7 @@ game_loop:
             call    check_kings
             jr      z, black_wins
 
-            jr      game_loop       ; Next turn!
+            jp      game_loop       ; Next turn!
 
 white_wins:
             ; Display "YOU WIN" and halt
@@ -697,20 +697,22 @@ think_scan:
 
             ; Yes - generate moves for this Black piece
             and     $07             ; Get piece type (1-6)
-            pop     de              ; E = current square number (from AF)
-            push    de              ; Save it again
             ld      d, a            ; D = piece type
+            pop     af              ; A = current square number (was pushed as AF)
+            push    af              ; Save it again for think_next
+            ld      e, a            ; E = current square number
+            ld      a, d            ; A = piece type (for comparisons below)
 
             ; Branch by piece type for move generation
             cp      1
-            jr      z, gen_pawn
+            jp      z, gen_pawn
             cp      2
-            jr      z, gen_knight
+            jp      z, gen_knight
             cp      6
-            jr      z, gen_king
+            jp      z, gen_king
 
             ; Bishop, Rook, or Queen - sliding pieces
-            jr      gen_slider
+            jp      gen_slider
 
 think_next:
             pop     af              ; Restore square number
