@@ -1,20 +1,16 @@
 #!/usr/bin/env python3
 """
-ZX81 1K Chess - Z80 Test Harness
+ZX81 1K Chess - Z80 test harness
 
-A minimal Z80 CPU emulator that runs the chess binary and verifies
-the board initialisation, display output, and computer AI work.
+Quick and dirty Z80 CPU emulator to test the chess binary without
+needing a real ZX81 or a full emulator. Only implements the subset
+of Z80 instructions actually used by the chess code.
 
-This is NOT a full ZX81 emulator. It emulates just enough of the
-Z80 instruction set and ZX81 ROM to test the chess program:
-  - Z80 CPU core (subset of instructions used by the chess code)
-  - RST $10 intercepted to capture display output
-  - ROM CLS ($0A2A) intercepted
-  - HALT intercepted (simulates keyboard input)
-  - System variables at $4000-$407C
+Intercepts RST $10 (print char), ROM CLS, and HALT to fake the
+ZX81 environment just enough to run the game logic.
 
 Usage: python3 test_harness.py [--play]
-  Default: runs init + display, shows board, then plays one computer move
+  Default: runs board init, display, and one computer move
   --play: interactive mode (type moves like E2E4)
 """
 
@@ -52,7 +48,7 @@ class Z80:
         # Main registers
         self.a = self.f = 0
         self.b = self.c = self.d = self.e = self.h = self.l = 0
-        self.sp = 0x43FF  # Stack at top of 1K RAM
+        self.sp = 0x7FFF  # Stack above code to avoid trampling (simulates 16K)
         self.pc = 0
         self.ix = self.iy = 0
         # Memory: 64K address space
@@ -232,14 +228,6 @@ class Z80:
                 continue
 
             op = self.fetch()
-
-            # Trace output if enabled
-            if getattr(self, '_trace', False) and getattr(self, '_trace_count', 0) < getattr(self, '_trace_limit', 500):
-                self._trace_count += 1
-                # Only trace interesting instructions (CP 64, BIT 3, and when A has black piece)
-                pc_minus1 = (self.pc - 1) & 0xFFFF
-                if op == 0xFE or (op == 0xA7 and self.a >= 0x08) or (op == 0xCB) or pc_minus1 < 0x42A0:
-                    print(f"    ${pc_minus1:04X}: op={op:02X} A={self.a:02X} DE={self.d:02X}{self.e:02X} HL={self.h:02X}{self.l:02X} SP={self.sp:04X} F={self.f:02X}")
 
             # --- NOP ---
             if op == 0x00:
@@ -856,7 +844,7 @@ def main():
     draw_addr = cpu.rb(start_addr + 4) | (cpu.rb(start_addr + 5) << 8)
     print(f"cls_and_draw at: ${draw_addr:04X}")
 
-    cpu.sp = 0x43FF
+    cpu.sp = 0x7FFF
     cpu.display_output = []
     cpu.display_line = []
     cpu.push(0x0000)
@@ -895,25 +883,11 @@ def main():
 
     if think_addr:
         print(f"think routine at: ${think_addr:04X}")
-        cpu.sp = 0x43FF
+        cpu.sp = 0x7FFF  # Use higher stack to avoid trampling code
         cpu.push(0x0000)
 
-        # Check board state before think
-        black_pieces = 0
-        for sq in range(64):
-            p = cpu.rb(0x4082 + sq)
-            if p & 0x08:
-                black_pieces += 1
-        print(f"  DEBUG: Black pieces on board: {black_pieces}")
-
-        # Enable tracing for first N instructions
         cpu.cycles = 0
-        cpu._trace = True
-        cpu._trace_count = 0
-        cpu._trace_limit = 500
         result = cpu.run(think_addr)
-        cpu._trace = False
-        print(f"  DEBUG: run() returned: {result}, cycles: {cpu.cycles}")
 
         best_from = cpu.rb(0x40C5)
         best_to = cpu.rb(0x40C6)
@@ -991,7 +965,7 @@ def main():
             # Computer thinks
             if think_addr:
                 cpu.wb(0x40C8, 8)  # side = Black
-                cpu.sp = 0x43FF
+                cpu.sp = 0x7FFF
                 cpu.push(0x0000)
                 cpu.cycles = 0
                 cpu.run(think_addr)
