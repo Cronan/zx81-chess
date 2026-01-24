@@ -2,11 +2,11 @@
 ;
 ;   ZX81 1K CHESS  -  "KING OF THE CASTLE"
 ;
-;   A complete chess game in under 672 bytes of Z80 machine code
-;   Designed to run in the standard 1K RAM of an unexpanded ZX81
+;   A complete chess game in ~672 bytes of Z80 machine code
+;   Runs in the standard 1K RAM of an unexpanded ZX81
 ;
-;   Written in Z80A assembly language, hand-assembled from hex
-;   Target: Sinclair ZX81 (Timex Sinclair 1000) with 1024 bytes RAM
+;   Z80A assembly, originally hand-assembled from hex
+;   Target: Sinclair ZX81 (Timex TS1000) with 1024 bytes RAM
 ;   CPU: Zilog Z80A @ 3.25 MHz
 ;
 ;   Original concept: 1982-83, hand-assembled in Durban, South Africa
@@ -83,7 +83,7 @@ CH_A        EQU     $26         ; Letter "A"
 CH_NEWLINE  EQU     $76         ; Newline (HALT instruction!)
 CH_INV      EQU     $80         ; OR with this for inverse video
 
-; Piece display characters (ZX81 character codes)
+; Piece display chars (ZX81 character codes, NOT ascii!)
 CH_K        EQU     $30         ; "K" = King
 CH_Q        EQU     $36         ; "Q" = Queen
 CH_R        EQU     $37         ; "R" = Rook
@@ -625,8 +625,8 @@ promote_w:  ld      a, $05          ; White Queen
 ; ============================================================================
 ; Scans the board to see if both kings are present.
 ; Returns Z flag set if a king is missing (game over).
-; This is our "checkmate" detection - brutal but effective:
-; the game ends when someone captures the king!
+; This is our "checkmate" detection - crude but works:
+; game ends when someone captures the king!
 
 check_kings:
             ld      hl, board
@@ -914,7 +914,7 @@ gk_skip:    pop     hl
 ;   Rook   ($5A): bits 1,3,4,6 set (orthogonals)
 ;   Queen  ($FF): all bits set
 ;
-; Sneaky? Yes. But it saves about 30 bytes!
+; Sneaky? Absolutely. Saves about 30 bytes though!
 
 gen_slider:
             ; D = piece type (3=Bishop, 4=Rook, 5=Queen)
@@ -1103,7 +1103,7 @@ print_msg:
 ;   - No draw by repetition or 50-move rule
 ;   - Pawn promotion is always to Queen
 ;
-; CLEVER BITS I'M PROUD OF:
+; BITS I'M PLEASED WITH:
 ;
 ;   - Board stored inside the REM statement (saves 64 bytes!)
 ;   - Direction mask trick for B/R/Q (one loop, 3 piece types)
@@ -1115,9 +1115,9 @@ print_msg:
 ;
 ; BUILD INSTRUCTIONS:
 ;
-; The 1983 original was hand-assembled with pencil and the opcode
-; table from the Zaks book. This rewrite can be assembled with
-; a modern assembler:
+; The 1983 original was hand-assembled with pencil + the opcode
+; tables from the Zaks book. This rewrite assembles with any
+; modern Z80 assembler:
 ;
 ;   z80asm -o chess.bin chess.asm
 ;
