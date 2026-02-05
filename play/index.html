@@ -35,6 +35,8 @@
             display: block;
             background: #fff;
             image-rendering: pixelated;
+            max-width: 100%;
+            height: auto;
         }
         .sinclair-logo {
             color: #c00;
@@ -120,10 +122,13 @@
             .touch-keyboard { display: block; }
         }
         @media (max-width: 600px) {
-            .zx81-case { padding: 15px; }
-            .screen-bezel { padding: 8px; }
+            body { padding: 10px; }
+            .zx81-case { padding: 15px; max-width: 100%; }
+            .screen-bezel { padding: 8px; overflow: hidden; }
             h1 { font-size: 20px; }
             .instructions { padding: 15px; font-size: 14px; }
+            .key { padding: 10px 12px; min-width: 36px; font-size: 14px; }
+            .key-enter { padding: 10px 20px; }
         }
     </style>
 </head>
