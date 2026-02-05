@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZX81 1K Chess - Play Online</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            background: #1a1a2e;
+            color: #eee;
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { color: #fff; margin-bottom: 5px; font-size: 24px; }
+        .subtitle { color: #888; margin-bottom: 20px; font-size: 14px; }
+        .zx81-case {
+            background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+        .screen-bezel {
+            background: #111;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        #screen {
+            display: block;
+            background: #fff;
+            image-rendering: pixelated;
+        }
+        .sinclair-logo {
+            color: #c00;
+            font-weight: bold;
+            font-size: 18px;
+            text-align: center;
+            margin-bottom: 15px;
+            letter-spacing: 3px;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+        button {
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 10px 20px;
+            font-family: inherit;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover { background: #444; }
+        #input-display {
+            background: rgba(0,0,0,0.3);
+            padding: 8px 15px;
+            border-radius: 4px;
+            margin-top: 10px;
+            text-align: center;
+            color: #4fc3f7;
+            min-height: 24px;
+        }
+        .status { color: #4fc3f7; font-size: 12px; margin-top: 10px; text-align: center; }
+        .instructions {
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            max-width: 768px;
+            line-height: 1.6;
+        }
+        .instructions h2 { color: #fff; margin-top: 0; font-size: 16px; }
+        code { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 3px; color: #4fc3f7; }
+        .footer { margin-top: 30px; color: #666; font-size: 12px; }
+        .footer a { color: #888; }
+    </style>
+</head>
+<body>
+    <h1>ZX81 1K Chess</h1>
+    <p class="subtitle">672 bytes of Z80 machine code &bull; 1K RAM</p>
+
+    <div class="zx81-case">
+        <div class="sinclair-logo">SINCLAIR ZX81</div>
+        <div class="screen-bezel">
+            <canvas id="screen"></canvas>
+        </div>
+        <div id="input-display">Type your move (e.g., E2E4)...</div>
+        <div class="controls">
+            <button id="btn-start">&#9658; Start Game</button>
+            <button id="btn-reset">&#8635; Reset</button>
+        </div>
+        <div class="status" id="status">Click Start to begin</div>
+    </div>
+
+    <div class="instructions">
+        <h2>How to Play</h2>
+        <p>You play <strong>White</strong>. Type moves like <code>E2E4</code> then press <strong>Enter</strong>.</p>
+        <p><strong>Pieces:</strong> K=King, Q=Queen, R=Rook, B=Bishop, N=Knight, P=Pawn</p>
+        <p>Inverse (white on black) = Black pieces. Normal = White pieces.</p>
+        <p>The computer thinks for ~2 seconds then plays its move.</p>
+    </div>
+
+    <div class="footer">
+        <a href="https://github.com/Cronan/zx81-chess">View source on GitHub</a>
+    </div>
+
+    <script src="z80.js"></script>
+    <script src="zx81.js"></script>
+    <script>
+        const CHESS_P = 'AAAAaURqRIJEAACDRH1AAACERIREAF1AAAIAAP///zd9QAAAAAAAjQwAAP//AAC8IRhAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAdYD6gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADUzJzc2MAABAwMFCTL3+Pn/AQcICe/x9voGCg8RBAIDBQYDAgTNPUHNdkGvMshAzexBzUxCzXZBzYVCIBY+CDLIQM2bQs1WQs12Qc2FQiAMw/VAIS9BzU5Edhj+ITdBzU5Edhj+PjQ6ADwuM/8uADwuM/8hgkAGQK93IxD8IYJAEedABggadyMTEPoGCD4BdyMQ/CGyQAYIPgl3IxD8EedABgga9gh3IxMQ+MnNKgoqDEAjPgDX1wYIPib11z4A1/E8EPc+dtcOCN0hukA+HIHXPgDXBgjd5dEaxdXN1EHXPgDX0cETEPE+dtfd5eER+P8Z5d3hDSDVPgDX1wYIPib11z4A1/E8EPfJpyADPhvJ9eYHXxYAIclAGX7Ry1vI9oDJPnbXPg/XzR9CMsNAXxYAIYJAGX6nKO/LXyDrPhbXzR9CMsRAXxYAIYJAGX6nyMtfwBjTzTxC1ibmB/XGJtfNPELWHeYH9cYd1/EHBwfRg8l2OiVA/v8o+PU+/zIlQPHJOsNATzrEQEcYCDrFQE86xkBHWRYAIYJAGX42AFgWACGCQBl35gf+AcB4/jgwB/4I0D4Nd8k+BXfJIYJABkAOAH7mB/4GIAEMIxD1ef4Cya8yx0A+/zLFQK/1XxYAIYJAGX6nKB3LXygZ5gdX8fVfev4BytVC/gLKTUP+Bsp5Q8OlQ/E8/kAg0cl71gg49E/NBESnIBs+Ac04RHvmOP4wIA971hBPzQREpyAFPgHNOER71gc4Bk/NEkMoAHvWCTgET80SQxi8e+YHR3nmB5AoMDAC7UT+AjAozQREpygiy18gHuYH5SHQQBYAGeHNBETmB9XlXxYAIdBAGX7h0c04RMkh30AGCMXlfk97gf5AMBVPzRFE/gMwDc0ERMtfIAbNIETNOEThwSMQ3MPOQiHXQAYIxeV+T3uB/kAwFU/NEUT+AjANzQREy18gBs0gRM04ROHBIxDcw85Cev4DPqUoCP4EPlooAj7/IddABghXxeXVeuYBKDd+V3tHgv5AMC5P9XjmB0d55geQMALtRP4CMBvNBESnKA3LXyARzSBEzThE8RgJPgHNOETxGM3x0cs64cEjELnDzkLl1VkWACGCQBl+0eHJ1XvmB1d55geSMALtRNHJzQREpygP5gfl1V8WACHQQBl+0eHJPgHJ1Vc6x0C6MAx6MsdAezLFQHkyxkDRyX7+/8jXIxj4dgACDgD51B0iIR0gfgAAAECCdnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnaA';
+
+        let cpu, zx81, running = false, inputBuffer = '';
+
+        function init() {
+            cpu = new Z80();
+            zx81 = new ZX81(cpu, document.getElementById('screen'));
+            zx81.initSystemVars();
+
+            // Load chess.p
+            const binary = atob(CHESS_P);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            zx81.loadPFile(bytes);
+
+            zx81.render();
+            document.getElementById('status').textContent = 'Ready';
+        }
+
+        function start() {
+            if (running) {
+                running = false;
+                document.getElementById('btn-start').innerHTML = '&#9658; Resume';
+                document.getElementById('status').textContent = 'Paused';
+                return;
+            }
+
+            running = true;
+            document.getElementById('btn-start').innerHTML = '&#10074;&#10074; Pause';
+            document.getElementById('status').textContent = 'Running...';
+
+            cpu.sp = 0x43FF;
+            cpu.pc = 0x4082;  // Entry point: USR 16514
+
+            function frame() {
+                if (!running) return;
+
+                // Process keyboard
+                const key = zx81.getKey();
+                if (key !== 0xFF) cpu.wb(0x4025, key);
+
+                // Run until HALT
+                for (let i = 0; i < 50000 && running; i++) {
+                    if (cpu.pc === 0) { running = false; break; }
+                    const result = cpu.step();
+                    if (result === 'halt') { cpu.halted = false; break; }
+                    if (result === 'error') {
+                        running = false;
+                        document.getElementById('status').textContent = 'Error at $' + cpu.pc.toString(16);
+                        break;
+                    }
+                }
+
+                zx81.render();
+                if (running) setTimeout(() => requestAnimationFrame(frame), 20);
+            }
+            frame();
+        }
+
+        document.getElementById('btn-start').onclick = start;
+        document.getElementById('btn-reset').onclick = () => { running = false; init(); document.getElementById('btn-start').innerHTML = '&#9658; Start'; };
+
+        document.addEventListener('keydown', (e) => {
+            if (!running) return;
+            if (e.key === 'Enter') {
+                inputBuffer = '';
+                document.getElementById('input-display').textContent = 'Move sent!';
+                setTimeout(() => { document.getElementById('input-display').textContent = 'Type your move...'; }, 500);
+            } else if (/^[A-Ha-h1-8]$/.test(e.key)) {
+                inputBuffer += e.key.toUpperCase();
+                document.getElementById('input-display').textContent = inputBuffer;
+            }
+        });
+
+        init();
+    </script>
+</body>
+</html>
