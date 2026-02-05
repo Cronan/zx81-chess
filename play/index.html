@@ -275,6 +275,11 @@
             document.getElementById('status').textContent =
                 `${statusMessage} | F:${frameCount} K:${keysWaiting} PC:${pcHex} ${hitHalt ? '⏸' : '▶'}`;
 
+            // Debug: show last key written vs read (v2)
+            const lw = cpu.lastKeyWritten ? cpu.lastKeyWritten.toString(16) : '-';
+            const lr = cpu.lastKeyRead ? cpu.lastKeyRead.toString(16) : '-';
+            document.getElementById('debug').textContent = `v2 | LastWrite:${lw} LastRead:${lr}`;
+
             return running;
         }
 
