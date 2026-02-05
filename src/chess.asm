@@ -214,7 +214,7 @@ game_loop:
 
             ; Check if black king was captured (game over)
             call    check_kings
-            jr      z, white_wins
+            jr      nz, white_wins
 
             ld      a, 8
             ld      (side), a       ; side = 8 (Black's turn)
@@ -224,7 +224,7 @@ game_loop:
 
             ; Check if white king was captured
             call    check_kings
-            jr      z, black_wins
+            jr      nz, black_wins
 
             jp      game_loop       ; Next turn!
 
@@ -642,7 +642,7 @@ ck_next:    inc     hl
 
             ld      a, c
             cp      2               ; Both kings present?
-            ret                     ; Z set if < 2 kings (someone lost!)
+            ret                     ; Z set if both present, Z clear if a king missing
 
 ; ============================================================================
 ;                   COMPUTER AI - "THE THINKING ENGINE"
@@ -789,8 +789,11 @@ check_pawn_cap:
             ld      b, a
             ld      a, c
             and     $07             ; Dest column
-            sub     b
+            sub     b               ; Delta (may be negative)
             jr      z, cpc_bad      ; Same column - not diagonal!
+            jr      nc, cpc_col_pos
+            neg                     ; Make positive
+cpc_col_pos:
             cp      2
             jr      nc, cpc_bad     ; Column wrapped around
 
@@ -945,20 +948,30 @@ gs_dir:     push    bc
 
             ; Slide along this direction
             ld      a, e            ; Start from current position
+
 gs_slide:
-            add     a, d            ; Move one step in direction
+            ld      b, a            ; B = previous position
+            add     a, d            ; A = new target
             cp      64
             jr      nc, gs_stopdir  ; Off the board
 
             ld      c, a            ; C = target square
-            push    de
-            call    check_col_delta
-            cp      2
-            pop     de
-            jr      nc, gs_stopdir  ; Column wrapped
+            push    af              ; Save target for loop continuation
 
-            push    af              ; Save target square
-            call    get_board_sq    ; A = piece at target
+            ; Check column delta between B (prev) and C (new)
+            ; This prevents diagonal wrapping around board edges
+            ld      a, b
+            and     $07             ; Previous column
+            ld      b, a
+            ld      a, c
+            and     $07             ; New column
+            sub     b               ; Delta (may be negative)
+            jr      nc, gs_col_pos
+            neg                     ; Make positive
+gs_col_pos: cp      2               ; Column change >= 2 means wrap
+            jr      nc, gs_col_wrap
+
+            call    get_board_sq    ; A = piece at target (C preserved)
             and     a               ; Empty square?
             jr      z, gs_empty
 
@@ -968,10 +981,8 @@ gs_slide:
 
             ; Enemy piece - can capture, then stop
             call    score_move
-            pop     af              ; Restore target (discard, C still set)
-            push    af
             call    try_move
-            pop     af
+            pop     af              ; Clean up saved target
             jr      gs_stopdir      ; Can't slide past a capture
 
 gs_empty:
@@ -981,7 +992,8 @@ gs_empty:
             pop     af              ; Restore target square to A
             jr      gs_slide        ; Continue sliding
 
-gs_blocked: pop     af              ; Clean up stack
+gs_col_wrap:
+gs_blocked: pop     af              ; Clean up saved target
 gs_stopdir:
 gs_skipdir:
             pop     de
