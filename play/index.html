@@ -370,7 +370,7 @@
         function sendMoveToEmulator() {
             if (inputBuffer.length !== 4) return;
 
-            // Push all 4 characters to key buffer - setInterval will process them
+            // Push all 4 characters to key buffer
             console.log('Sending move:', inputBuffer);
             for (const char of inputBuffer) {
                 const code = zx81.keyMap[char];
@@ -379,10 +379,12 @@
                     zx81.keyBuffer.push(code);
                 }
             }
+            // Add NEWLINE (0x76) to submit the move
+            zx81.keyBuffer.push(0x76);
+            console.log('  Added NEWLINE (0x76) to submit');
 
             inputBuffer = '';
             updateInputDisplay();
-            // setInterval will handle processing and auto-detect thinking state
         }
 
         // Touch keyboard
