@@ -226,6 +226,7 @@
             const key = zx81.getKey();
             if (key !== 0xFF) {
                 cpu.wb(0x4025, key);
+                console.log('Frame', frameCount, ': Delivered key', key.toString(16), 'to LAST_K, PC=' + cpu.pc.toString(16));
             }
 
             // Run until HALT (or timeout after many instructions)
@@ -247,7 +248,10 @@
 
             // Detect if computer is thinking (no HALT = busy computing)
             if (!hitHalt && running) {
-                if (thinkingStartFrame === 0) thinkingStartFrame = frameCount;
+                if (thinkingStartFrame === 0) {
+                    thinkingStartFrame = frameCount;
+                    console.log('Started thinking at frame', frameCount, 'PC=' + cpu.pc.toString(16), 'instr=' + instructions);
+                }
                 const thinkingFrames = frameCount - thinkingStartFrame;
                 if (thinkingFrames > 5) {
                     statusMessage = 'Computer thinking... (' + thinkingFrames + ')';
@@ -255,6 +259,7 @@
             } else {
                 if (thinkingStartFrame > 0) {
                     // Was thinking, now done
+                    console.log('Stopped thinking at frame', frameCount, 'PC=' + cpu.pc.toString(16));
                     statusMessage = 'Your turn!';
                     thinkingStartFrame = 0;
                 }
@@ -263,8 +268,9 @@
             // Render and update status
             zx81.render();
             const keysWaiting = zx81.keyBuffer.length;
+            const pcHex = cpu.pc.toString(16).padStart(4, '0');
             document.getElementById('status').textContent =
-                `${statusMessage} | F:${frameCount} K:${keysWaiting} ${hitHalt ? '⏸' : '▶'}`;
+                `${statusMessage} | F:${frameCount} K:${keysWaiting} PC:${pcHex} ${hitHalt ? '⏸' : '▶'}`;
 
             return running;
         }
@@ -349,8 +355,10 @@
             if (inputBuffer.length !== 4) return;
 
             // Push all 4 characters to key buffer - setInterval will process them
+            console.log('Sending move:', inputBuffer);
             for (const char of inputBuffer) {
                 const code = zx81.keyMap[char];
+                console.log('  Key', char, '→ code', code ? code.toString(16) : 'undefined');
                 if (code !== undefined) {
                     zx81.keyBuffer.push(code);
                 }
