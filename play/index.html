@@ -195,7 +195,7 @@
     <script>
         const CHESS_P = 'AAAAaURqRIJEAACDRH1AAACERIREAF1AAAIAAP///zd9QAAAAAAAjQwAAP//AAC8IRhAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAdYD6gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADUzJzc2MAABAwMFCTL3+Pn/AQcICe/x9voGCg8RBAIDBQYDAgTNPUHNdkGvMshAzexBzUxCzXZBzYVCIBY+CDLIQM2bQs1WQs12Qc2FQiAMw/VAIS9BzU5Edhj+ITdBzU5Edhj+PjQ6ADwuM/8uADwuM/8hgkAGQK93IxD8IYJAEedABggadyMTEPoGCD4BdyMQ/CGyQAYIPgl3IxD8EedABgga9gh3IxMQ+MnNKgoqDEAjPgDX1wYIPib11z4A1/E8EPc+dtcOCN0hukA+HIHXPgDXBgjd5dEaxdXN1EHXPgDX0cETEPE+dtfd5eER+P8Z5d3hDSDVPgDX1wYIPib11z4A1/E8EPfJpyADPhvJ9eYHXxYAIclAGX7Ry1vI9oDJPnbXPg/XzR9CMsNAXxYAIYJAGX6nKO/LXyDrPhbXzR9CMsRAXxYAIYJAGX6nyMtfwBjTzTxC1ibmB/XGJtfNPELWHeYH9cYd1/EHBwfRg8l2OiVA/v8o+PU+/zIlQPHJOsNATzrEQEcYCDrFQE86xkBHWRYAIYJAGX42AFgWACGCQBl35gf+AcB4/jgwB/4I0D4Nd8k+BXfJIYJABkAOAH7mB/4GIAEMIxD1ef4Cya8yx0A+/zLFQK/1XxYAIYJAGX6nKB3LXygZ5gdX8fVfev4BytVC/gLKTUP+Bsp5Q8OlQ/E8/kAg0cl71gg49E/NBESnIBs+Ac04RHvmOP4wIA971hBPzQREpyAFPgHNOER71gc4Bk/NEkMoAHvWCTgET80SQxi8e+YHR3nmB5AoMDAC7UT+AjAozQREpygiy18gHuYH5SHQQBYAGeHNBETmB9XlXxYAIdBAGX7h0c04RMkh30AGCMXlfk97gf5AMBVPzRFE/gMwDc0ERMtfIAbNIETNOEThwSMQ3MPOQiHXQAYIxeV+T3uB/kAwFU/NEUT+AjANzQREy18gBs0gRM04ROHBIxDcw85Cev4DPqUoCP4EPlooAj7/IddABghXxeXVeuYBKDd+V3tHgv5AMC5P9XjmB0d55geQMALtRP4CMBvNBESnKA3LXyARzSBEzThE8RgJPgHNOETxGM3x0cs64cEjELnDzkLl1VkWACGCQBl+0eHJ1XvmB1d55geSMALtRNHJzQREpygP5gfl1V8WACHQQBl+0eHJPgHJ1Vc6x0C6MAx6MsdAezLFQHkyxkDRyX7+/8jXIxj4dgACDgD51B0iIR0gfgAAAECCdnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnaA';
 
-        let cpu, zx81, running = false, inputBuffer = '';
+        let cpu, zx81, running = false, inputBuffer = '', frameInterval = null;
 
         function init() {
             cpu = new Z80();
@@ -215,6 +215,7 @@
         function start() {
             if (running) {
                 running = false;
+                if (frameInterval) { clearInterval(frameInterval); frameInterval = null; }
                 document.getElementById('btn-start').innerHTML = '&#9658; Resume';
                 document.getElementById('status').textContent = 'Paused';
                 return;
@@ -229,7 +230,10 @@
             cpu.pc = 0x40EF;  // Entry point: start label (after data tables)
 
             function frame() {
-                if (!running) return;
+                if (!running) {
+                    if (frameInterval) { clearInterval(frameInterval); frameInterval = null; }
+                    return;
+                }
 
                 // Process keyboard
                 const key = zx81.getKey();
@@ -248,13 +252,19 @@
                 }
 
                 zx81.render();
-                if (running) setTimeout(() => requestAnimationFrame(frame), 20);
             }
-            frame();
+
+            frame(); // Run first frame immediately
+            frameInterval = setInterval(frame, 33); // ~30fps, more reliable on mobile
         }
 
         document.getElementById('btn-start').onclick = start;
-        document.getElementById('btn-reset').onclick = () => { running = false; init(); document.getElementById('btn-start').innerHTML = '&#9658; Start'; };
+        document.getElementById('btn-reset').onclick = () => {
+            running = false;
+            if (frameInterval) { clearInterval(frameInterval); frameInterval = null; }
+            init();
+            document.getElementById('btn-start').innerHTML = '&#9658; Start';
+        };
 
         function handleKey(key) {
             if (!running) return;
