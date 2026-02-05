@@ -169,7 +169,8 @@
                 <button class="key" data-key="8">8</button>
             </div>
             <div class="key-row">
-                <button class="key key-enter" data-key="Enter">ENTER</button>
+                <button class="key" data-key="Backspace">⌫</button>
+                <button class="key key-enter" data-key="Enter">SEND</button>
             </div>
         </div>
     </div>
@@ -178,12 +179,13 @@
         <h2>How to Play</h2>
         <ol style="margin: 0; padding-left: 20px;">
             <li><strong>Click "Start Game"</strong> - the board will appear</li>
-            <li><strong>Enter your move</strong> (e.g., <code>E2E4</code>) - use keyboard or tap buttons on mobile</li>
-            <li><strong>Press Enter</strong> to confirm your move</li>
-            <li><strong>Wait</strong> for the computer to think (~2 seconds)</li>
+            <li><strong>Type your move</strong> as 4 characters: from-square + to-square (e.g., <code>E2E4</code>)</li>
+            <li><strong>Press SEND</strong> to submit (or use ⌫ to correct)</li>
+            <li><strong>Wait</strong> for the computer to respond (~2 seconds)</li>
         </ol>
         <p style="margin-top: 15px;"><strong>Pieces:</strong> K=King, Q=Queen, R=Rook, B=Bishop, N=Knight, P=Pawn</p>
         <p><strong>Colors:</strong> Normal text = White (you) &bull; Inverse/filled = Black (computer)</p>
+        <p><strong>Invalid moves</strong> are ignored - try again if nothing happens.</p>
     </div>
 
     <div class="footer">
@@ -212,27 +214,58 @@
             document.getElementById('status').textContent = 'Ready';
         }
 
-        // Core frame execution - can be called directly or via interval
+        // Core frame execution
+        let frameCount = 0;
+        let statusMessage = 'Your turn!';
+        let thinkingStartFrame = 0;
+
         function runFrame() {
             if (!running) return false;
 
-            // Process keyboard
+            // Process keyboard - one key per frame
             const key = zx81.getKey();
-            if (key !== 0xFF) cpu.wb(0x4025, key);
+            if (key !== 0xFF) {
+                cpu.wb(0x4025, key);
+            }
 
-            // Run until HALT (increased cycles for mobile)
+            // Run until HALT (or timeout after many instructions)
+            let hitHalt = false;
+            let instructions = 0;
             for (let i = 0; i < 100000 && running; i++) {
                 if (cpu.pc === 0) { running = false; break; }
                 const result = cpu.step();
-                if (result === 'halt') { cpu.halted = false; break; }
+                instructions++;
+                if (result === 'halt') { cpu.halted = false; hitHalt = true; break; }
                 if (result === 'error') {
                     running = false;
-                    document.getElementById('status').textContent = 'Error at $' + cpu.pc.toString(16);
+                    statusMessage = 'Error at $' + cpu.pc.toString(16);
                     break;
                 }
             }
 
+            frameCount++;
+
+            // Detect if computer is thinking (no HALT = busy computing)
+            if (!hitHalt && running) {
+                if (thinkingStartFrame === 0) thinkingStartFrame = frameCount;
+                const thinkingFrames = frameCount - thinkingStartFrame;
+                if (thinkingFrames > 5) {
+                    statusMessage = 'Computer thinking... (' + thinkingFrames + ')';
+                }
+            } else {
+                if (thinkingStartFrame > 0) {
+                    // Was thinking, now done
+                    statusMessage = 'Your turn!';
+                    thinkingStartFrame = 0;
+                }
+            }
+
+            // Render and update status
             zx81.render();
+            const keysWaiting = zx81.keyBuffer.length;
+            document.getElementById('status').textContent =
+                `${statusMessage} | F:${frameCount} K:${keysWaiting} ${hitHalt ? '⏸' : '▶'}`;
+
             return running;
         }
 
@@ -246,9 +279,12 @@
             }
 
             running = true;
+            inputBuffer = '';
+            frameCount = 0;
+            thinkingStartFrame = 0;
+            statusMessage = 'Your turn!';
             document.getElementById('btn-start').innerHTML = '&#10074;&#10074; Pause';
-            document.getElementById('status').textContent = 'Your turn! Type a move (e.g., E2E4) then press Enter';
-            document.getElementById('input-display').textContent = '';
+            updateInputDisplay();
 
             cpu.sp = 0x43FF;
             cpu.pc = 0x40EF;  // Entry point: start label (after data tables)
@@ -265,49 +301,73 @@
             document.getElementById('btn-start').innerHTML = '&#9658; Start';
         };
 
-        function handleKey(key) {
-            if (!running) return;
-            if (key === 'Enter') {
-                inputBuffer = '';
-                document.getElementById('input-display').textContent = '';
-                document.getElementById('status').textContent = 'Computer is thinking...';
-                setTimeout(() => {
-                    document.getElementById('status').textContent = 'Your turn! Type a move then press Enter';
-                }, 2500);
-            } else if (/^[A-Ha-h1-8]$/.test(key)) {
-                inputBuffer += key.toUpperCase();
-                document.getElementById('input-display').textContent = inputBuffer + (inputBuffer.length < 4 ? '_' : ' ⏎');
+        function updateInputDisplay() {
+            const display = document.getElementById('input-display');
+            if (inputBuffer.length === 0) {
+                display.textContent = 'Type move (e.g., E2E4)';
+            } else if (inputBuffer.length < 4) {
+                display.textContent = inputBuffer + '_'.repeat(4 - inputBuffer.length);
+            } else {
+                display.textContent = inputBuffer + ' → tap SEND';
             }
         }
 
-        document.addEventListener('keydown', (e) => handleKey(e.key));
+        function handleKey(key) {
+            if (!running) return false;
 
-        // Touch keyboard - use touchend for faster mobile response
+            if (key === 'Backspace') {
+                if (inputBuffer.length > 0) {
+                    inputBuffer = inputBuffer.slice(0, -1);
+                    updateInputDisplay();
+                }
+                return false; // Don't send to emulator
+            }
+
+            if (key === 'Enter') {
+                if (inputBuffer.length === 4) {
+                    // Send all 4 characters to emulator
+                    return true; // Signal to send move
+                }
+                return false; // Not ready
+            }
+
+            if (/^[A-Ha-h1-8]$/.test(key) && inputBuffer.length < 4) {
+                inputBuffer += key.toUpperCase();
+                updateInputDisplay();
+            }
+            return false;
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (handleKey(e.key)) {
+                sendMoveToEmulator();
+            }
+            if (e.key === 'Backspace') e.preventDefault();
+        });
+
+        function sendMoveToEmulator() {
+            if (inputBuffer.length !== 4) return;
+
+            // Push all 4 characters to key buffer - setInterval will process them
+            for (const char of inputBuffer) {
+                const code = zx81.keyMap[char];
+                if (code !== undefined) {
+                    zx81.keyBuffer.push(code);
+                }
+            }
+
+            inputBuffer = '';
+            updateInputDisplay();
+            // setInterval will handle processing and auto-detect thinking state
+        }
+
+        // Touch keyboard
         const touchKeyboard = document.getElementById('touch-keyboard');
 
         function handleTouchKey(key) {
             if (!key || !running) return;
-            handleKey(key);
-            const code = zx81.keyMap[key];
-            if (code !== undefined) {
-                zx81.keyBuffer.push(code);
-                // Defer execution to after touch event completes
-                setTimeout(() => {
-                    runFrame();
-                    // Force canvas repaint
-                    zx81.ctx.getImageData(0, 0, 1, 1);
-                    if (key === 'Enter') {
-                        // Run computer thinking with visual updates
-                        let frames = 0;
-                        function think() {
-                            if (frames++ < 100 && running) {
-                                runFrame();
-                                setTimeout(think, 10);
-                            }
-                        }
-                        think();
-                    }
-                }, 0);
+            if (handleKey(key)) {
+                sendMoveToEmulator();
             }
         }
 
