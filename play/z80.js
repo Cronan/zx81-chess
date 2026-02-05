@@ -25,19 +25,17 @@ class Z80 {
 
     rb(addr) {
         const val = this.memory[addr & 0xFFFF];
-        // Debug: only log non-FF LAST_K reads (filter out the noise)
+        // Track if our key was read (not ff)
         if ((addr & 0xFFFF) === 0x4025 && val !== 0xFF) {
-            const el = document.getElementById('debug');
-            if (el) el.textContent = 'R:' + val.toString(16) + ' ' + el.textContent.substring(0, 100);
+            this.lastKeyRead = val;
         }
         return val;
     }
     wb(addr, val) {
         this.memory[addr & 0xFFFF] = val & 0xFF;
-        // Debug: only log non-FF LAST_K writes
+        // Track key writes
         if ((addr & 0xFFFF) === 0x4025 && (val & 0xFF) !== 0xFF) {
-            const el = document.getElementById('debug');
-            if (el) el.textContent = 'W:' + val.toString(16) + ' ' + el.textContent.substring(0, 100);
+            this.lastKeyWritten = val & 0xFF;
         }
     }
     debugLog(msg) {
