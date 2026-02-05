@@ -220,6 +220,7 @@
         let statusMessage = 'Your turn!';
         let thinkingStartFrame = 0;
         let peakMaxPc = 0;  // Track highest PC ever reached
+        let lastSentCodes = '';  // Track last sent move codes
 
         function runFrame() {
             if (!running) return false;
@@ -282,10 +283,9 @@
             document.getElementById('status').textContent =
                 `${statusMessage} | F:${frameCount} K:${keysWaiting} PC:${pcHex} ${hitHalt ? '⏸' : '▶'}`;
 
-            // Debug: show PC range and peak (v4)
-            const maxP = cpu.lastMaxPc ? cpu.lastMaxPc.toString(16) : '-';
+            // Debug: show sent codes and peak PC (v6)
             const peak = peakMaxPc ? peakMaxPc.toString(16) : '-';
-            document.getElementById('debug').textContent = `v4 | max:${maxP} peak:${peak} instr:${instructions}`;
+            document.getElementById('debug').textContent = `v6 | ${lastSentCodes} peak:${peak}`;
 
             return running;
         }
@@ -379,9 +379,9 @@
                     codes.push(code.toString(16));
                 }
             }
-            // Show what we're sending on debug line
-            document.getElementById('debug').textContent =
-                `v5 SENDING: ${inputBuffer} = [${codes.join(',')}]`;
+            // Store for persistent display
+            lastSentCodes = `${inputBuffer}=[${codes.join(',')}]`;
+            peakMaxPc = 0;  // Reset peak to see new max
 
             inputBuffer = '';
             updateInputDisplay();
