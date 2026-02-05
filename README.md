@@ -35,14 +35,14 @@
 
 ## Try It Now
 
-**Play in your browser** - no installation required:
+### [▶ Play Online](https://cronan.github.io/zx81-chess/play/)
 
-1. Go to **[JtyOne Online ZX81 Emulator](https://www.zx81stuff.org.uk/zx81/jtyone.html)**
-2. Click **Options** → Set memory to **1K**
-3. Click **Load** → Choose the `chess.p` file from this repo
-4. Play! (Type moves like `E2E4` then press ENTER)
+**Play directly in your browser** - no installation required! The JavaScript emulator runs real Z80 machine code.
 
-Or download [EightyOne](https://sourceforge.net/projects/eightyone-sinclair-emulator/) (Windows) or [sz81](http://sz81.sourceforge.net/) (Linux/Mac) for the full experience.
+Or use a dedicated emulator for the authentic experience:
+- [EightyOne](https://sourceforge.net/projects/eightyone-sinclair-emulator/) (Windows)
+- [sz81](http://sz81.sourceforge.net/) (Linux/Mac)
+- [JtyOne Online](https://www.zx81stuff.org.uk/zx81/jtyone.html) (load `chess.p` with 1K memory)
 
 ---
 
