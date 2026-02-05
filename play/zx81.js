@@ -109,13 +109,8 @@ class ZX81 {
     }
 
     setupKeyboard() {
-        document.addEventListener('keydown', (e) => {
-            const code = this.keyMap[e.key];
-            if (code !== undefined) {
-                this.keyBuffer.push(code);
-                e.preventDefault();
-            }
-        });
+        // Keyboard is now handled by index.html's input buffering system
+        // This prevents duplicate key handling
     }
 
     getKey() {
