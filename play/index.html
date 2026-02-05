@@ -214,34 +214,58 @@
             document.getElementById('status').textContent = 'Ready';
         }
 
-        // Core frame execution - can be called directly or via interval
+        // Core frame execution
         let frameCount = 0;
+        let statusMessage = 'Your turn!';
+        let thinkingStartFrame = 0;
+
         function runFrame() {
             if (!running) return false;
 
-            // Process keyboard
+            // Process keyboard - one key per frame
             const key = zx81.getKey();
-            if (key !== 0xFF) cpu.wb(0x4025, key);
+            if (key !== 0xFF) {
+                cpu.wb(0x4025, key);
+            }
 
-            // Run until HALT (increased cycles for mobile)
+            // Run until HALT (or timeout after many instructions)
             let hitHalt = false;
+            let instructions = 0;
             for (let i = 0; i < 100000 && running; i++) {
                 if (cpu.pc === 0) { running = false; break; }
                 const result = cpu.step();
+                instructions++;
                 if (result === 'halt') { cpu.halted = false; hitHalt = true; break; }
                 if (result === 'error') {
                     running = false;
-                    document.getElementById('status').textContent = 'Error at $' + cpu.pc.toString(16);
+                    statusMessage = 'Error at $' + cpu.pc.toString(16);
                     break;
                 }
             }
 
-            // Use requestAnimationFrame to ensure browser repaints
             frameCount++;
-            requestAnimationFrame(() => {
-                zx81.render();
-                document.getElementById('status').textContent = `Frame ${frameCount}` + (hitHalt ? ' (waiting)' : ' (busy)');
-            });
+
+            // Detect if computer is thinking (no HALT = busy computing)
+            if (!hitHalt && running) {
+                if (thinkingStartFrame === 0) thinkingStartFrame = frameCount;
+                const thinkingFrames = frameCount - thinkingStartFrame;
+                if (thinkingFrames > 5) {
+                    statusMessage = 'Computer thinking... (' + thinkingFrames + ')';
+                }
+            } else {
+                if (thinkingStartFrame > 0) {
+                    // Was thinking, now done
+                    statusMessage = 'Your turn!';
+                    thinkingStartFrame = 0;
+                }
+            }
+
+            // Render and update status
+            zx81.render();
+            const keysWaiting = zx81.keyBuffer.length;
+            document.getElementById('status').textContent =
+                `${statusMessage} | F:${frameCount} K:${keysWaiting} ${hitHalt ? '⏸' : '▶'}`;
+
             return running;
         }
 
@@ -256,8 +280,10 @@
 
             running = true;
             inputBuffer = '';
+            frameCount = 0;
+            thinkingStartFrame = 0;
+            statusMessage = 'Your turn!';
             document.getElementById('btn-start').innerHTML = '&#10074;&#10074; Pause';
-            document.getElementById('status').textContent = 'Your turn!';
             updateInputDisplay();
 
             cpu.sp = 0x43FF;
@@ -322,7 +348,7 @@
         function sendMoveToEmulator() {
             if (inputBuffer.length !== 4) return;
 
-            // Send each character to emulator
+            // Push all 4 characters to key buffer - setInterval will process them
             for (const char of inputBuffer) {
                 const code = zx81.keyMap[char];
                 if (code !== undefined) {
@@ -330,28 +356,9 @@
                 }
             }
 
-            const move = inputBuffer;
             inputBuffer = '';
             updateInputDisplay();
-
-            // Run frames to process the move
-            setTimeout(() => {
-                // Process input characters
-                for (let i = 0; i < 10; i++) runFrame();
-
-                // Computer thinking
-                document.getElementById('status').textContent = 'Computer thinking...';
-                let frames = 0;
-                function think() {
-                    if (frames++ < 100 && running) {
-                        runFrame();
-                        setTimeout(think, 10);
-                    } else {
-                        document.getElementById('status').textContent = 'Your turn!';
-                    }
-                }
-                think();
-            }, 0);
+            // setInterval will handle processing and auto-detect thinking state
         }
 
         // Touch keyboard
