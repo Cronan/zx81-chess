@@ -94,20 +94,24 @@
         <div class="screen-bezel">
             <canvas id="screen"></canvas>
         </div>
-        <div id="input-display">Type your move (e.g., E2E4)...</div>
+        <div id="input-display">Press Start Game, then type moves here</div>
         <div class="controls">
             <button id="btn-start">&#9658; Start Game</button>
             <button id="btn-reset">&#8635; Reset</button>
         </div>
-        <div class="status" id="status">Click Start to begin</div>
+        <div class="status" id="status">Click Start Game to play! You are White.</div>
     </div>
 
     <div class="instructions">
         <h2>How to Play</h2>
-        <p>You play <strong>White</strong>. Type moves like <code>E2E4</code> then press <strong>Enter</strong>.</p>
-        <p><strong>Pieces:</strong> K=King, Q=Queen, R=Rook, B=Bishop, N=Knight, P=Pawn</p>
-        <p>Inverse (white on black) = Black pieces. Normal = White pieces.</p>
-        <p>The computer thinks for ~2 seconds then plays its move.</p>
+        <ol style="margin: 0; padding-left: 20px;">
+            <li><strong>Click "Start Game"</strong> - the board will appear</li>
+            <li><strong>Type your move</strong> (e.g., <code>E2</code> <code>E4</code>) - just type, no clicking needed</li>
+            <li><strong>Press Enter</strong> to confirm your move</li>
+            <li><strong>Wait</strong> for the computer to think (~2 seconds)</li>
+        </ol>
+        <p style="margin-top: 15px;"><strong>Pieces:</strong> K=King, Q=Queen, R=Rook, B=Bishop, N=Knight, P=Pawn</p>
+        <p><strong>Colors:</strong> Normal text = White (you) &bull; Inverse/filled = Black (computer)</p>
     </div>
 
     <div class="footer">
@@ -146,10 +150,11 @@
 
             running = true;
             document.getElementById('btn-start').innerHTML = '&#10074;&#10074; Pause';
-            document.getElementById('status').textContent = 'Running...';
+            document.getElementById('status').textContent = 'Your turn! Type a move (e.g., E2E4) then press Enter';
+            document.getElementById('input-display').textContent = '';
 
             cpu.sp = 0x43FF;
-            cpu.pc = 0x4082;  // Entry point: USR 16514
+            cpu.pc = 0x40EF;  // Entry point: start label (after data tables)
 
             function frame() {
                 if (!running) return;
@@ -183,11 +188,14 @@
             if (!running) return;
             if (e.key === 'Enter') {
                 inputBuffer = '';
-                document.getElementById('input-display').textContent = 'Move sent!';
-                setTimeout(() => { document.getElementById('input-display').textContent = 'Type your move...'; }, 500);
+                document.getElementById('input-display').textContent = '';
+                document.getElementById('status').textContent = 'Computer is thinking...';
+                setTimeout(() => {
+                    document.getElementById('status').textContent = 'Your turn! Type a move then press Enter';
+                }, 2500);
             } else if (/^[A-Ha-h1-8]$/.test(e.key)) {
                 inputBuffer += e.key.toUpperCase();
-                document.getElementById('input-display').textContent = inputBuffer;
+                document.getElementById('input-display').textContent = inputBuffer + (inputBuffer.length < 4 ? '_' : ' ⏎');
             }
         });
 
