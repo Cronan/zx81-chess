@@ -282,23 +282,44 @@
 
         document.addEventListener('keydown', (e) => handleKey(e.key));
 
-        // Touch keyboard support - run frames immediately for responsive mobile
-        document.getElementById('touch-keyboard').addEventListener('click', (e) => {
-            const key = e.target.dataset.key;
-            if (key && running) {
-                handleKey(key);
-                // Send to emulator
-                const code = zx81.keyMap[key];
-                if (code !== undefined) {
-                    zx81.keyBuffer.push(code);
-                    // Run frame immediately for responsive feedback
+        // Touch keyboard - use touchend for faster mobile response
+        const touchKeyboard = document.getElementById('touch-keyboard');
+
+        function handleTouchKey(key) {
+            if (!key || !running) return;
+            handleKey(key);
+            const code = zx81.keyMap[key];
+            if (code !== undefined) {
+                zx81.keyBuffer.push(code);
+                // Defer execution to after touch event completes
+                setTimeout(() => {
                     runFrame();
-                    // If Enter, run extra frames for computer thinking
+                    // Force canvas repaint
+                    zx81.ctx.getImageData(0, 0, 1, 1);
                     if (key === 'Enter') {
-                        for (let i = 0; i < 50 && running; i++) runFrame();
+                        // Run computer thinking with visual updates
+                        let frames = 0;
+                        function think() {
+                            if (frames++ < 100 && running) {
+                                runFrame();
+                                setTimeout(think, 10);
+                            }
+                        }
+                        think();
                     }
-                }
+                }, 0);
             }
+        }
+
+        touchKeyboard.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            const key = e.target.dataset.key;
+            handleTouchKey(key);
+        });
+
+        touchKeyboard.addEventListener('click', (e) => {
+            const key = e.target.dataset.key;
+            handleTouchKey(key);
         });
 
         init();
