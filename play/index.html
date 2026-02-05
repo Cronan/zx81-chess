@@ -212,6 +212,30 @@
             document.getElementById('status').textContent = 'Ready';
         }
 
+        // Core frame execution - can be called directly or via interval
+        function runFrame() {
+            if (!running) return false;
+
+            // Process keyboard
+            const key = zx81.getKey();
+            if (key !== 0xFF) cpu.wb(0x4025, key);
+
+            // Run until HALT (increased cycles for mobile)
+            for (let i = 0; i < 100000 && running; i++) {
+                if (cpu.pc === 0) { running = false; break; }
+                const result = cpu.step();
+                if (result === 'halt') { cpu.halted = false; break; }
+                if (result === 'error') {
+                    running = false;
+                    document.getElementById('status').textContent = 'Error at $' + cpu.pc.toString(16);
+                    break;
+                }
+            }
+
+            zx81.render();
+            return running;
+        }
+
         function start() {
             if (running) {
                 running = false;
@@ -229,33 +253,8 @@
             cpu.sp = 0x43FF;
             cpu.pc = 0x40EF;  // Entry point: start label (after data tables)
 
-            function frame() {
-                if (!running) {
-                    if (frameInterval) { clearInterval(frameInterval); frameInterval = null; }
-                    return;
-                }
-
-                // Process keyboard
-                const key = zx81.getKey();
-                if (key !== 0xFF) cpu.wb(0x4025, key);
-
-                // Run until HALT
-                for (let i = 0; i < 50000 && running; i++) {
-                    if (cpu.pc === 0) { running = false; break; }
-                    const result = cpu.step();
-                    if (result === 'halt') { cpu.halted = false; break; }
-                    if (result === 'error') {
-                        running = false;
-                        document.getElementById('status').textContent = 'Error at $' + cpu.pc.toString(16);
-                        break;
-                    }
-                }
-
-                zx81.render();
-            }
-
-            frame(); // Run first frame immediately
-            frameInterval = setInterval(frame, 33); // ~30fps, more reliable on mobile
+            runFrame(); // Run first frame immediately
+            frameInterval = setInterval(runFrame, 50);
         }
 
         document.getElementById('btn-start').onclick = start;
@@ -283,14 +282,22 @@
 
         document.addEventListener('keydown', (e) => handleKey(e.key));
 
-        // Touch keyboard support
+        // Touch keyboard support - run frames immediately for responsive mobile
         document.getElementById('touch-keyboard').addEventListener('click', (e) => {
             const key = e.target.dataset.key;
-            if (key) {
+            if (key && running) {
                 handleKey(key);
-                // Also send to emulator
+                // Send to emulator
                 const code = zx81.keyMap[key];
-                if (code !== undefined) zx81.keyBuffer.push(code);
+                if (code !== undefined) {
+                    zx81.keyBuffer.push(code);
+                    // Run frame immediately for responsive feedback
+                    runFrame();
+                    // If Enter, run extra frames for computer thinking
+                    if (key === 'Enter') {
+                        for (let i = 0; i < 50 && running; i++) runFrame();
+                    }
+                }
             }
         });
 
