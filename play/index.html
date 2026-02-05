@@ -213,6 +213,7 @@
         }
 
         // Core frame execution - can be called directly or via interval
+        let frameCount = 0;
         function runFrame() {
             if (!running) return false;
 
@@ -221,10 +222,11 @@
             if (key !== 0xFF) cpu.wb(0x4025, key);
 
             // Run until HALT (increased cycles for mobile)
+            let hitHalt = false;
             for (let i = 0; i < 100000 && running; i++) {
                 if (cpu.pc === 0) { running = false; break; }
                 const result = cpu.step();
-                if (result === 'halt') { cpu.halted = false; break; }
+                if (result === 'halt') { cpu.halted = false; hitHalt = true; break; }
                 if (result === 'error') {
                     running = false;
                     document.getElementById('status').textContent = 'Error at $' + cpu.pc.toString(16);
@@ -232,7 +234,12 @@
                 }
             }
 
-            zx81.render();
+            // Use requestAnimationFrame to ensure browser repaints
+            frameCount++;
+            requestAnimationFrame(() => {
+                zx81.render();
+                document.getElementById('status').textContent = `Frame ${frameCount}` + (hitHalt ? ' (waiting)' : ' (busy)');
+            });
             return running;
         }
 
