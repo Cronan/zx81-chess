@@ -1,0 +1,11 @@
+# Editor files
+*~
+*.swp
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# Temporary files
+*.tmp
