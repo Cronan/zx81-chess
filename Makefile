@@ -5,10 +5,10 @@
 #   - python3
 #
 # Targets:
-#   make          - Build chess.bin and chess.p
-#   make test     - Run the test harness
+#   make          - Build and test
+#   make build    - Build chess.bin and chess.p
+#   make test     - Run all tests (basic + comprehensive)
 #   make clean    - Remove built files
-#   make all      - Build and test
 
 ASM = pasmo
 PYTHON = python3
@@ -31,7 +31,11 @@ $(PFILE): $(BIN) tools/make_p_file.py
 	$(PYTHON) tools/make_p_file.py $(BIN) $(PFILE)
 
 test: $(BIN)
+	@echo "=== Basic Tests ==="
 	$(PYTHON) test_harness.py
+	@echo ""
+	@echo "=== Comprehensive Test Suite ==="
+	$(PYTHON) tests/test_chess.py
 
 clean:
 	rm -f $(BIN) $(PFILE)
