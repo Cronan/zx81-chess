@@ -34,9 +34,10 @@ class Z80 {
     }
     wb(addr, val) {
         this.memory[addr & 0xFFFF] = val & 0xFF;
-        // Debug: log LAST_K writes (on-screen for mobile)
-        if ((addr & 0xFFFF) === 0x4025 && this.debugLastK) {
-            this.debugLog('W:' + val.toString(16));
+        // Debug: always log LAST_K writes
+        if ((addr & 0xFFFF) === 0x4025) {
+            const el = document.getElementById('debug');
+            if (el) el.textContent = 'W:' + val.toString(16) + ' ' + el.textContent.substring(0, 80);
         }
     }
     debugLog(msg) {
