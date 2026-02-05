@@ -149,7 +149,7 @@
             document.getElementById('status').textContent = 'Running...';
 
             cpu.sp = 0x43FF;
-            cpu.pc = 0x40EF;  // Entry point
+            cpu.pc = 0x4082;  // Entry point: USR 16514
 
             function frame() {
                 if (!running) return;
