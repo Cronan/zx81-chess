@@ -25,18 +25,22 @@ class Z80 {
 
     rb(addr) {
         const val = this.memory[addr & 0xFFFF];
-        // Debug: log LAST_K reads
+        // Debug: log LAST_K reads (on-screen for mobile)
         if ((addr & 0xFFFF) === 0x4025 && this.debugLastK) {
-            console.log('CPU read LAST_K:', val.toString(16), 'at PC:', (this.pc-3).toString(16));
+            this.debugLog('R:' + val.toString(16));
         }
         return val;
     }
     wb(addr, val) {
         this.memory[addr & 0xFFFF] = val & 0xFF;
-        // Debug: log LAST_K writes
+        // Debug: log LAST_K writes (on-screen for mobile)
         if ((addr & 0xFFFF) === 0x4025 && this.debugLastK) {
-            console.log('CPU write LAST_K:', val.toString(16));
+            this.debugLog('W:' + val.toString(16));
         }
+    }
+    debugLog(msg) {
+        const el = document.getElementById('debug');
+        if (el) el.textContent = msg + ' ' + el.textContent.substring(0, 150);
     }
     rw(addr) { return this.rb(addr) | (this.rb(addr + 1) << 8); }
     ww(addr, val) { this.wb(addr, val & 0xFF); this.wb(addr + 1, (val >> 8) & 0xFF); }
