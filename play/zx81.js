@@ -17,12 +17,16 @@ class ZX81 {
         this.canvas.width = 32 * this.charWidth * this.scale;
         this.canvas.height = 24 * this.charHeight * this.scale;
 
-        this.displayStart = 0x4469;
         this.keyBuffer = [];
         this.keyMap = this.createKeyMap();
 
         this.setupHandlers();
         this.setupKeyboard();
+    }
+
+    // Get display file address from D_FILE system variable
+    getDisplayStart() {
+        return this.cpu.rw(0x400C);
     }
 
     createKeyMap() {
@@ -127,13 +131,14 @@ class ZX81 {
     }
 
     printChar(char) {
+        const displayStart = this.getDisplayStart();
         let dfcc = this.cpu.rw(0x400E);
-        if (dfcc < this.displayStart) dfcc = this.displayStart + 1;
+        if (dfcc < displayStart) dfcc = displayStart + 1;
 
         if (char === 0x76) {
-            const offset = dfcc - this.displayStart;
+            const offset = dfcc - displayStart;
             const row = Math.floor(offset / 33);
-            dfcc = this.displayStart + (row + 1) * 33 + 1;
+            dfcc = displayStart + (row + 1) * 33 + 1;
         } else {
             this.cpu.wb(dfcc, char);
             dfcc++;
@@ -142,23 +147,26 @@ class ZX81 {
     }
 
     clearDisplay() {
-        let addr = this.displayStart + 1;
+        const displayStart = this.getDisplayStart();
+        let addr = displayStart + 1;
         for (let row = 0; row < 24; row++) {
             for (let col = 0; col < 32; col++) {
                 this.cpu.wb(addr++, 0x00);
             }
             addr++; // Skip newline
         }
-        this.cpu.ww(0x400E, this.displayStart + 1);
+        this.cpu.ww(0x400E, displayStart + 1);
     }
 
     initSystemVars() {
-        this.cpu.ww(0x400C, this.displayStart);
-        this.cpu.ww(0x400E, this.displayStart + 1);
+        // Default display file location (will be overwritten by loadPFile)
+        const defaultDisplayStart = 0x4469;
+        this.cpu.ww(0x400C, defaultDisplayStart);
+        this.cpu.ww(0x400E, defaultDisplayStart + 1);
         this.cpu.wb(0x4025, 0xFF);
 
         // Initialize display file
-        let addr = this.displayStart;
+        let addr = defaultDisplayStart;
         this.cpu.wb(addr++, 0x76);
         for (let row = 0; row < 24; row++) {
             for (let col = 0; col < 32; col++) this.cpu.wb(addr++, 0x00);
@@ -177,12 +185,21 @@ class ZX81 {
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-        let addr = this.displayStart + 1;
+        const displayStart = this.getDisplayStart();
+        let addr = displayStart;
+
+        // Skip initial newline if present
+        if (this.cpu.rb(addr) === 0x76) addr++;
+
         for (let row = 0; row < 24; row++) {
             for (let col = 0; col < 32; col++) {
-                const char = this.cpu.rb(addr++);
-                if (char !== 0x76) this.drawChar(col, row, char);
+                const char = this.cpu.rb(addr);
+                if (char === 0x76) break; // End of row
+                this.drawChar(col, row, char);
+                addr++;
             }
+            // Find next newline
+            while (this.cpu.rb(addr) !== 0x76 && addr < displayStart + 0x400) addr++;
             addr++; // Skip newline
         }
     }
