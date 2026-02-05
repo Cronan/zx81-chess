@@ -187,10 +187,16 @@ zx81-chess/
 ├── LICENSE ................. MIT License
 │
 ├── src/
-│   └── chess.asm ........... Z80 assembly source (fully commented)
+│   ├── chess.asm ........... Z80 assembly source (fully commented)
+│   └── loader.bas .......... BASIC loader for typing in by hand
 │
 ├── tests/
 │   └── test_chess.py ....... Comprehensive test suite (16 tests)
+│
+├── play/
+│   ├── index.html .......... Online emulator web interface
+│   ├── z80.js .............. JavaScript Z80 CPU emulator
+│   └── zx81.js ............. ZX81 system emulation
 │
 ├── docs/
 │   ├── ANNOTATED.md ........ Deep walkthrough of every routine
