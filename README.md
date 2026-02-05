@@ -1,3 +1,5 @@
+[![Build and Test](https://github.com/Cronan/zx81-chess/actions/workflows/ci.yml/badge.svg)](https://github.com/Cronan/zx81-chess/actions/workflows/ci.yml)
+
 ```
  _____ _  _ ___  _      ___ _  _ ___ ___ ___
 |_  / | \/ |__ \/ |    / __| || | __/ __/ __|
@@ -31,6 +33,19 @@
 
 ---
 
+## Try It Now
+
+### [▶ Play Online](https://cronan.github.io/zx81-chess/play/)
+
+**Play directly in your browser** - no installation required! The JavaScript emulator runs real Z80 machine code.
+
+Or use a dedicated emulator for the authentic experience:
+- [EightyOne](https://sourceforge.net/projects/eightyone-sinclair-emulator/) (Windows)
+- [sz81](http://sz81.sourceforge.net/) (Linux/Mac)
+- [JtyOne Online](https://www.zx81stuff.org.uk/zx81/jtyone.html) (load `chess.p` with 1K memory)
+
+---
+
 ## What Is This?
 
 This is a chess game that runs on the **Sinclair ZX81** (or Timex Sinclair 1000) in just **1 kilobyte of RAM** - the standard, unexpanded machine with no RAM pack.
@@ -48,22 +63,29 @@ That's it. Two lines. One kilobyte. A game of chess.
 
 ---
 
+## Where the 672 Bytes Go
+
+```
+Component        Bytes   What it does
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Board Data         64    ████████░░░░░░░░░░░░░░░░░░░  The 8x8 board (1 byte/square)
+Variables           7    █░░░░░░░░░░░░░░░░░░░░░░░░░░  Cursor, move coords, best move
+Lookup Tables      38    ████░░░░░░░░░░░░░░░░░░░░░░░  Piece chars, values, directions
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Display            85    █████████░░░░░░░░░░░░░░░░░░  Draw board to screen
+Input              90    █████████░░░░░░░░░░░░░░░░░░  Read player moves from keyboard
+Move Logic        100    ██████████░░░░░░░░░░░░░░░░░  Execute moves, pawn promotion
+AI Engine         250    █████████████████████████░░  Generate moves, evaluate, choose
+Game Loop          38    ████░░░░░░░░░░░░░░░░░░░░░░░  Main loop, win/lose detection
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TOTAL             672    ███████████████████████████  Every byte accounted for
+```
+
+The AI alone - scanning pieces, generating legal moves, evaluating captures, picking the best - takes 37% of the entire program. Display and input together are another 26%. That leaves just 250 bytes for everything else.
+
+---
+
 ## How to Play
-
-### On a Real ZX81
-
-1. Type in the BASIC loader from `src/loader.bas` (requires 16K RAM pack for the loader)
-2. Run it to POKE the machine code into memory
-3. `SAVE "CHESS"` to tape
-4. Remove the 16K RAM pack (yes, really)
-5. `LOAD "CHESS"` on the 1K machine
-6. The game starts automatically
-
-### On an Emulator (Recommended!)
-
-See **[docs/EMULATOR.md](docs/EMULATOR.md)** for detailed instructions on running this with modern ZX81 emulators.
-
-Quick start: use [EightyOne](https://sourceforge.net/projects/eightyone-sinclair-emulator/) (Windows) or [sz81](http://sz81.sourceforge.net/) (Linux/Mac).
 
 ### Playing the Game
 
@@ -89,29 +111,16 @@ GAME OVER:
   Press BREAK (SHIFT+SPACE) to return to BASIC.
 ```
 
----
+### On a Real ZX81
 
-## What's In This Repository
+1. Type in the BASIC loader from `src/loader.bas` (requires 16K RAM pack for the loader)
+2. Run it to POKE the machine code into memory
+3. `SAVE "CHESS"` to tape
+4. Remove the 16K RAM pack (yes, really)
+5. `LOAD "CHESS"` on the 1K machine
+6. The game starts automatically
 
-```
-zx81-chess/
-|
-+-- README.md ............... You are here
-|
-+-- src/
-|   +-- chess.asm ........... Z80 assembly source (fully commented)
-|   +-- loader.bas .......... BASIC loader program listing
-|
-+-- docs/
-|   +-- ANNOTATED.md ........ Deep walkthrough of every routine
-|   +-- THE-CHALLENGE.md .... How to fit chess in 1024 bytes
-|   +-- MY-STORY.md ......... A 14-year-old, a ZX81, and a dream
-|   +-- ZX81-GUIDE.md ....... ZX81 technical reference & resources
-|   +-- EMULATOR.md ......... Running this on modern hardware
-|   +-- MEMORY-MAP.md ....... Complete memory layout
-|
-+-- hexdump.txt ............. Raw hex bytes for manual entry
-```
+See **[docs/EMULATOR.md](docs/EMULATOR.md)** for detailed emulator setup instructions.
 
 ---
 
@@ -169,6 +178,68 @@ It won't win any tournaments, but it will:
 
 ---
 
+## What's In This Repository
+
+```
+zx81-chess/
+│
+├── README.md ............... You are here
+├── LICENSE ................. MIT License
+│
+├── src/
+│   ├── chess.asm ........... Z80 assembly source (fully commented)
+│   └── loader.bas .......... BASIC loader for typing in by hand
+│
+├── tests/
+│   └── test_chess.py ....... Comprehensive test suite (16 tests)
+│
+├── play/
+│   ├── index.html .......... Online emulator web interface
+│   ├── z80.js .............. JavaScript Z80 CPU emulator
+│   └── zx81.js ............. ZX81 system emulation
+│
+├── docs/
+│   ├── ANNOTATED.md ........ Deep walkthrough of every routine
+│   ├── THE-CHALLENGE.md .... How to fit chess in 1024 bytes
+│   ├── MY-STORY.md ......... A 14-year-old, a ZX81, and a dream
+│   ├── ZX81-GUIDE.md ....... ZX81 technical reference & resources
+│   ├── EMULATOR.md ......... Running this on modern hardware
+│   └── MEMORY-MAP.md ....... Complete memory layout
+│
+├── tools/
+│   └── make_p_file.py ...... Convert binary to ZX81 .P format
+│
+├── chess.bin ............... Assembled binary (672 bytes)
+├── chess.p ................. Ready-to-load ZX81 tape file
+└── hexdump.txt ............. Raw hex bytes for manual entry
+```
+
+---
+
+## Building & Testing
+
+```bash
+# Build from source (requires pasmo assembler)
+make build
+
+# Run the test suite
+make test
+
+# Or do both
+make
+```
+
+The test suite includes **16 unit tests** covering:
+- Board initialization and piece placement
+- All piece movement patterns (knight L-shapes, bishop diagonals, etc.)
+- Capture logic and priority (prefers high-value targets)
+- Edge cases (board boundaries, blocking, pawn promotion)
+- Game-over detection
+
+Tests run against actual Z80 machine code using a cycle-accurate emulator.
+
+---
+
 ## Historical Context
 
 The ZX81 was released by Sinclair Research in March 1981. With its membrane keyboard, 1K of RAM, and a TV for a monitor, it brought computing to hundreds of thousands of people — from London to Durban — who could never have afforded a "real" computer.
@@ -179,30 +250,7 @@ The original version of this game was written over the course of 1982-83 by a ki
 
 **This repository is not that original code.** That code is lost. This is a complete rewrite, done as an adult, in the spirit of that kid. The constraints are real — 1K, Z80A, every byte earned — but the implementation benefits from decades of hindsight. See [docs/MY-STORY.md](docs/MY-STORY.md) for the honest version.
 
-For context, this README file is about 8 kilobytes. The entire chess game would fit in the first few paragraphs.
-
-See **[docs/MY-STORY.md](docs/MY-STORY.md)** for the full story.
-
----
-
-## Building from Source
-
-If you have a Z80 cross-assembler:
-
-```bash
-# Using z80asm
-z80asm -o chess.bin src/chess.asm
-
-# Using zmac
-zmac src/chess.asm -o chess.bin
-
-# Using pasmo
-pasmo src/chess.asm chess.bin
-```
-
-Then convert to a ZX81 .P file using a tool like `bin2p` or `zx81-utils`.
-
-Or just type in the hex dump. That's the authentic experience.
+For context, this README file is about 9 kilobytes. The entire chess game would fit in the first few paragraphs.
 
 ---
 
@@ -233,3 +281,9 @@ Or just type in the hex dump. That's the authentic experience.
 ```
 
 *672 bytes. Every one of them earned.*
+
+---
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
