@@ -23,8 +23,25 @@ class Z80 {
         this.onRomCall = null;
     }
 
-    rb(addr) { return this.memory[addr & 0xFFFF]; }
-    wb(addr, val) { this.memory[addr & 0xFFFF] = val & 0xFF; }
+    rb(addr) {
+        const val = this.memory[addr & 0xFFFF];
+        // Debug: log LAST_K reads (on-screen for mobile)
+        if ((addr & 0xFFFF) === 0x4025 && this.debugLastK) {
+            this.debugLog('R:' + val.toString(16));
+        }
+        return val;
+    }
+    wb(addr, val) {
+        this.memory[addr & 0xFFFF] = val & 0xFF;
+        // Debug: log LAST_K writes (on-screen for mobile)
+        if ((addr & 0xFFFF) === 0x4025 && this.debugLastK) {
+            this.debugLog('W:' + val.toString(16));
+        }
+    }
+    debugLog(msg) {
+        const el = document.getElementById('debug');
+        if (el) el.textContent = msg + ' ' + el.textContent.substring(0, 150);
+    }
     rw(addr) { return this.rb(addr) | (this.rb(addr + 1) << 8); }
     ww(addr, val) { this.wb(addr, val & 0xFF); this.wb(addr + 1, (val >> 8) & 0xFF); }
     fetch() { return this.rb(this.pc++); }

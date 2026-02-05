@@ -147,6 +147,7 @@
             <button id="btn-reset">&#8635; Reset</button>
         </div>
         <div class="status" id="status">Click Start Game to play! You are White.</div>
+        <div class="status" id="debug" style="font-size: 10px; color: #888; max-height: 100px; overflow-y: auto;"></div>
         <div class="touch-keyboard" id="touch-keyboard">
             <div class="key-row">
                 <button class="key" data-key="A">A</button>
@@ -294,6 +295,7 @@
 
             cpu.sp = 0x43FF;
             cpu.pc = 0x40EF;  // Entry point: start label (after data tables)
+            cpu.debugLastK = true;  // Enable LAST_K debugging
 
             runFrame(); // Run first frame immediately
             frameInterval = setInterval(runFrame, 50);
