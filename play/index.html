@@ -371,17 +371,17 @@
             if (inputBuffer.length !== 4) return;
 
             // Push all 4 characters to key buffer
-            console.log('Sending move:', inputBuffer);
+            let codes = [];
             for (const char of inputBuffer) {
                 const code = zx81.keyMap[char];
-                console.log('  Key', char, '→ code', code ? code.toString(16) : 'undefined');
                 if (code !== undefined) {
                     zx81.keyBuffer.push(code);
+                    codes.push(code.toString(16));
                 }
             }
-            // Add NEWLINE (0x76) to submit the move
-            zx81.keyBuffer.push(0x76);
-            console.log('  Added NEWLINE (0x76) to submit');
+            // Show what we're sending on debug line
+            document.getElementById('debug').textContent =
+                `v5 SENDING: ${inputBuffer} = [${codes.join(',')}]`;
 
             inputBuffer = '';
             updateInputDisplay();
