@@ -294,6 +294,7 @@
 
             cpu.sp = 0x43FF;
             cpu.pc = 0x40EF;  // Entry point: start label (after data tables)
+            cpu.debugLastK = true;  // Enable LAST_K debugging
 
             runFrame(); // Run first frame immediately
             frameInterval = setInterval(runFrame, 50);
