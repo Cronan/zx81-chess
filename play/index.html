@@ -227,7 +227,9 @@
             const key = zx81.getKey();
             if (key !== 0xFF) {
                 cpu.wb(0x4025, key);
-                console.log('Frame', frameCount, ': Delivered key', key.toString(16), 'to LAST_K, PC=' + cpu.pc.toString(16));
+                // On-screen debug for mobile
+                const dbg = document.getElementById('debug');
+                dbg.textContent = 'SENT:' + key.toString(16) + ' ' + dbg.textContent.substring(0, 100);
             }
 
             // Run until HALT (or timeout after many instructions)
