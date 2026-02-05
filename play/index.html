@@ -219,6 +219,7 @@
         let frameCount = 0;
         let statusMessage = 'Your turn!';
         let thinkingStartFrame = 0;
+        let peakMaxPc = 0;  // Track highest PC ever reached
 
         function runFrame() {
             if (!running) return false;
@@ -251,6 +252,7 @@
             }
             cpu.lastMinPc = minPc;
             cpu.lastMaxPc = maxPc;
+            if (maxPc > peakMaxPc) peakMaxPc = maxPc;
 
             frameCount++;
 
@@ -280,10 +282,10 @@
             document.getElementById('status').textContent =
                 `${statusMessage} | F:${frameCount} K:${keysWaiting} PC:${pcHex} ${hitHalt ? '⏸' : '▶'}`;
 
-            // Debug: show PC range this frame (v3)
-            const minP = cpu.lastMinPc ? cpu.lastMinPc.toString(16) : '-';
+            // Debug: show PC range and peak (v4)
             const maxP = cpu.lastMaxPc ? cpu.lastMaxPc.toString(16) : '-';
-            document.getElementById('debug').textContent = `v3 | PC range: ${minP}-${maxP} | instr:${instructions}`;
+            const peak = peakMaxPc ? peakMaxPc.toString(16) : '-';
+            document.getElementById('debug').textContent = `v4 | max:${maxP} peak:${peak} instr:${instructions}`;
 
             return running;
         }
