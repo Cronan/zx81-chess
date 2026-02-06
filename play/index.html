@@ -225,15 +225,6 @@
         function runFrame() {
             if (!running) return false;
 
-            // Process keyboard - one key per frame
-            const key = zx81.getKey();
-            if (key !== 0xFF) {
-                cpu.wb(0x4025, key);
-                // On-screen debug for mobile
-                const dbg = document.getElementById('debug');
-                dbg.textContent = 'SENT:' + key.toString(16) + ' ' + dbg.textContent.substring(0, 100);
-            }
-
             // Run until HALT (or timeout after many instructions)
             let hitHalt = false;
             let instructions = 0;
@@ -244,7 +235,21 @@
                 if (cpu.pc < minPc) minPc = cpu.pc;
                 const result = cpu.step();
                 instructions++;
-                if (result === 'halt') { cpu.halted = false; hitHalt = true; break; }
+
+                if (result === 'halt') {
+                    // Handle keyboard DURING halt (like test harness)
+                    const key = zx81.getKey();
+                    if (key !== 0xFF) {
+                        // Write as WORD: key in low byte, 0 in high byte
+                        cpu.ww(0x4025, key);
+                    } else {
+                        // No key: write 0xFFFF
+                        cpu.ww(0x4025, 0xFFFF);
+                    }
+                    cpu.halted = false;
+                    hitHalt = true;
+                    break;
+                }
                 if (result === 'error') {
                     running = false;
                     statusMessage = 'Error at $' + cpu.pc.toString(16);
@@ -283,9 +288,9 @@
             document.getElementById('status').textContent =
                 `${statusMessage} | F:${frameCount} K:${keysWaiting} PC:${pcHex} ${hitHalt ? '⏸' : '▶'}`;
 
-            // Debug: show sent codes and peak PC (v6)
+            // Debug: show sent codes and peak PC (v7)
             const peak = peakMaxPc ? peakMaxPc.toString(16) : '-';
-            document.getElementById('debug').textContent = `v6 | ${lastSentCodes} peak:${peak}`;
+            document.getElementById('debug').textContent = `v7 | ${lastSentCodes} peak:${peak}`;
 
             return running;
         }
@@ -309,7 +314,7 @@
 
             cpu.sp = 0x43FF;
             cpu.pc = 0x40EF;  // Entry point: start label (after data tables)
-            cpu.debugLastK = true;  // Enable LAST_K debugging
+            cpu.ww(0x4025, 0xFFFF);  // LAST_K = no key (word)
 
             runFrame(); // Run first frame immediately
             frameInterval = setInterval(runFrame, 50);
