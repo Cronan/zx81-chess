@@ -220,18 +220,10 @@
         let statusMessage = 'Your turn!';
         let thinkingStartFrame = 0;
         let peakMaxPc = 0;  // Track highest PC ever reached
+        let lastSentCodes = '';  // Track last sent move codes
 
         function runFrame() {
             if (!running) return false;
-
-            // Process keyboard - one key per frame
-            const key = zx81.getKey();
-            if (key !== 0xFF) {
-                cpu.wb(0x4025, key);
-                // On-screen debug for mobile
-                const dbg = document.getElementById('debug');
-                dbg.textContent = 'SENT:' + key.toString(16) + ' ' + dbg.textContent.substring(0, 100);
-            }
 
             // Run until HALT (or timeout after many instructions)
             let hitHalt = false;
@@ -243,7 +235,21 @@
                 if (cpu.pc < minPc) minPc = cpu.pc;
                 const result = cpu.step();
                 instructions++;
-                if (result === 'halt') { cpu.halted = false; hitHalt = true; break; }
+
+                if (result === 'halt') {
+                    // Handle keyboard DURING halt (like test harness)
+                    const key = zx81.getKey();
+                    if (key !== 0xFF) {
+                        // Write as WORD: key in low byte, 0 in high byte
+                        cpu.ww(0x4025, key);
+                    } else {
+                        // No key: write 0xFFFF
+                        cpu.ww(0x4025, 0xFFFF);
+                    }
+                    cpu.halted = false;
+                    hitHalt = true;
+                    break;
+                }
                 if (result === 'error') {
                     running = false;
                     statusMessage = 'Error at $' + cpu.pc.toString(16);
@@ -282,10 +288,9 @@
             document.getElementById('status').textContent =
                 `${statusMessage} | F:${frameCount} K:${keysWaiting} PC:${pcHex} ${hitHalt ? '⏸' : '▶'}`;
 
-            // Debug: show PC range and peak (v4)
-            const maxP = cpu.lastMaxPc ? cpu.lastMaxPc.toString(16) : '-';
+            // Debug: show sent codes and peak PC (v7)
             const peak = peakMaxPc ? peakMaxPc.toString(16) : '-';
-            document.getElementById('debug').textContent = `v4 | max:${maxP} peak:${peak} instr:${instructions}`;
+            document.getElementById('debug').textContent = `v7 | ${lastSentCodes} peak:${peak}`;
 
             return running;
         }
@@ -309,7 +314,7 @@
 
             cpu.sp = 0x43FF;
             cpu.pc = 0x40EF;  // Entry point: start label (after data tables)
-            cpu.debugLastK = true;  // Enable LAST_K debugging
+            cpu.ww(0x4025, 0xFFFF);  // LAST_K = no key (word)
 
             runFrame(); // Run first frame immediately
             frameInterval = setInterval(runFrame, 50);
@@ -379,9 +384,9 @@
                     codes.push(code.toString(16));
                 }
             }
-            // Show what we're sending on debug line
-            document.getElementById('debug').textContent =
-                `v5 SENDING: ${inputBuffer} = [${codes.join(',')}]`;
+            // Store for persistent display
+            lastSentCodes = `${inputBuffer}=[${codes.join(',')}]`;
+            peakMaxPc = 0;  // Reset peak to see new max
 
             inputBuffer = '';
             updateInputDisplay();
