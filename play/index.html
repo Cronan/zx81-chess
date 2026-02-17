@@ -2,200 +2,251 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZX81 1K Chess - Play Online</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>ZX81 1K Chess</title>
     <style>
-        * { box-sizing: border-box; }
-        body {
-            background: #1a1a2e;
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body {
+            background: #111;
             color: #eee;
             font-family: 'Courier New', monospace;
-            margin: 0;
-            padding: 20px;
-            min-height: 100vh;
+            height: 100%;
+            overflow: hidden;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
             display: flex;
             flex-direction: column;
             align-items: center;
+            justify-content: center;
+            padding: 8px;
         }
-        h1 { color: #fff; margin-bottom: 5px; font-size: 24px; }
-        .subtitle { color: #888; margin-bottom: 20px; font-size: 14px; }
         .zx81-case {
-            background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
-            border-radius: 15px;
-            padding: 30px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-        }
-        .screen-bezel {
-            background: #111;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px;
-        }
-        #screen {
-            display: block;
-            background: #fff;
-            image-rendering: pixelated;
-            max-width: 100%;
-            height: auto;
+            background: linear-gradient(180deg, #222 0%, #181818 100%);
+            border-radius: 12px;
+            padding: 12px;
+            width: 100%;
+            max-width: 480px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.6);
         }
         .sinclair-logo {
             color: #c00;
             font-weight: bold;
-            font-size: 18px;
-            text-align: center;
-            margin-bottom: 15px;
-            letter-spacing: 3px;
-        }
-        .controls {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            margin-top: 15px;
-        }
-        button {
-            background: #333;
-            color: #fff;
-            border: 1px solid #555;
-            padding: 10px 20px;
-            font-family: inherit;
-            font-size: 14px;
-            cursor: pointer;
-            border-radius: 4px;
-        }
-        button:hover { background: #444; }
-        #move-input {
-            margin-top: 10px;
-            text-align: center;
-        }
-        .move-slots {
-            display: inline-flex;
-            gap: 4px;
-            align-items: center;
-            font-size: 28px;
+            font-size: 13px;
+            text-align: right;
             letter-spacing: 2px;
+            margin-bottom: 6px;
+            padding-right: 4px;
+        }
+        .screen-bezel {
+            background: #000;
+            border-radius: 6px;
+            padding: 8px;
+            margin-bottom: 8px;
+        }
+        #screen {
+            display: block;
+            width: 100%;
+            height: auto;
+            background: #fff;
+            image-rendering: pixelated;
+        }
+        /* Move input display */
+        .move-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            margin-bottom: 6px;
+            height: 36px;
         }
         .move-slot {
-            width: 36px;
-            height: 44px;
-            line-height: 44px;
+            width: 28px;
+            height: 32px;
+            line-height: 32px;
             text-align: center;
-            border-radius: 4px;
-            background: rgba(0,0,0,0.4);
-            color: #4fc3f7;
-            border: 2px solid transparent;
+            border-radius: 3px;
+            background: rgba(255,255,255,0.06);
+            color: #666;
+            font-size: 20px;
+            font-weight: bold;
         }
         .move-slot.active {
-            border-color: #4fc3f7;
-            background: rgba(79,195,247,0.15);
+            border: 1.5px solid #4fc3f7;
+            background: rgba(79,195,247,0.1);
+            color: #4fc3f7;
         }
-        .move-slot.filled {
-            color: #fff;
-        }
-        .move-arrow {
-            color: #666;
-            font-size: 18px;
-            margin: 0 2px;
-        }
-        .move-hint {
+        .move-slot.filled { color: #fff; }
+        .move-arrow { color: #555; font-size: 14px; margin: 0 2px; }
+        .status {
             color: #888;
-            font-size: 12px;
-            margin-top: 6px;
+            font-size: 11px;
+            text-align: center;
+            margin-bottom: 8px;
+            height: 14px;
         }
-        .status { color: #4fc3f7; font-size: 12px; margin-top: 10px; text-align: center; }
-        .instructions {
-            background: rgba(255,255,255,0.05);
-            border-radius: 8px;
-            padding: 20px;
-            margin-top: 20px;
-            max-width: 768px;
-            line-height: 1.6;
+        /* ZX81-style keyboard */
+        .zx81-keyboard {
+            background: #1a1a1a;
+            border-radius: 0 0 8px 8px;
+            padding: 8px 4px 10px;
         }
-        .instructions h2 { color: #fff; margin-top: 0; font-size: 16px; }
-        code { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 3px; color: #4fc3f7; }
-        .footer { margin-top: 30px; color: #666; font-size: 12px; }
-        .footer a { color: #888; }
-        .touch-keyboard {
-            display: none;
-            margin-top: 15px;
-            background: rgba(0,0,0,0.3);
-            border-radius: 8px;
-            padding: 10px;
-        }
-        .key-row {
+        .kb-row {
             display: flex;
             justify-content: center;
-            gap: 5px;
-            margin-bottom: 5px;
+            gap: 3px;
+            margin-bottom: 3px;
         }
-        .key {
-            background: #444;
-            color: #fff;
-            border: 1px solid #666;
-            padding: 12px 16px;
-            font-family: inherit;
-            font-size: 16px;
+        .kb-key {
+            flex: 1;
+            max-width: 42px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #2a2a2a;
+            color: #555;
+            border: 1px solid #333;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
             font-weight: bold;
             cursor: pointer;
-            border-radius: 4px;
-            min-width: 44px;
+            user-select: none;
+            -webkit-user-select: none;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+        }
+        .kb-key.valid {
+            background: #3a3a3a;
+            color: #fff;
+            border-color: #4fc3f7;
+            box-shadow: 0 0 6px rgba(79,195,247,0.25);
+        }
+        .kb-key.valid:active {
+            background: #4fc3f7;
+            color: #000;
+        }
+        .kb-key.fn {
+            max-width: 64px;
+            font-size: 10px;
+            letter-spacing: 0.5px;
+        }
+        .kb-key.flash {
+            background: #fff !important;
+            color: #000 !important;
+            border-color: #fff !important;
+            transition: none;
+        }
+        /* Reset button */
+        .reset-bar {
+            display: flex;
+            justify-content: center;
+            margin-top: 6px;
+        }
+        .reset-btn {
+            background: none;
+            border: 1px solid #333;
+            color: #666;
+            font-family: inherit;
+            font-size: 10px;
+            padding: 4px 14px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .reset-btn:hover { border-color: #666; color: #aaa; }
+        /* Footer */
+        .footer {
+            margin-top: 8px;
             text-align: center;
         }
-        .key:active { background: #666; }
-        .key.hidden { visibility: hidden; }
-        @media (pointer: coarse) {
-            .touch-keyboard { display: block; }
+        .footer a {
+            color: #444;
+            font-size: 10px;
+            text-decoration: none;
         }
-        @media (max-width: 600px) {
-            body { padding: 10px; }
-            .zx81-case { padding: 15px; max-width: 100%; }
-            .screen-bezel { padding: 8px; overflow: hidden; }
-            h1 { font-size: 20px; }
-            .instructions { padding: 15px; font-size: 14px; }
-            .key { padding: 10px 12px; min-width: 36px; font-size: 14px; }
+        @media (max-width: 360px) {
+            .zx81-case { padding: 8px; }
+            .kb-key { height: 32px; font-size: 12px; }
+            .kb-key.fn { font-size: 9px; }
+        }
+        @media (min-height: 700px) {
+            .kb-key { height: 40px; }
         }
     </style>
 </head>
 <body>
-    <h1>ZX81 1K Chess</h1>
-    <p class="subtitle">672 bytes of Z80 machine code &bull; 1K RAM</p>
-
     <div class="zx81-case">
         <div class="sinclair-logo">SINCLAIR ZX81</div>
         <div class="screen-bezel">
             <canvas id="screen"></canvas>
         </div>
-        <div id="move-input">
-            <div class="move-slots">
-                <span class="move-slot" id="s0">_</span>
-                <span class="move-slot" id="s1">_</span>
-                <span class="move-arrow">&rarr;</span>
-                <span class="move-slot" id="s2">_</span>
-                <span class="move-slot" id="s3">_</span>
+        <div class="move-bar" id="move-bar">
+            <span class="move-slot active" id="s0">_</span>
+            <span class="move-slot" id="s1">_</span>
+            <span class="move-arrow">&rarr;</span>
+            <span class="move-slot" id="s2">_</span>
+            <span class="move-slot" id="s3">_</span>
+        </div>
+        <div class="status" id="status">Your turn</div>
+        <div class="zx81-keyboard" id="keyboard">
+            <div class="kb-row" id="row1">
+                <div class="kb-key" data-key="1">1</div>
+                <div class="kb-key" data-key="2">2</div>
+                <div class="kb-key" data-key="3">3</div>
+                <div class="kb-key" data-key="4">4</div>
+                <div class="kb-key" data-key="5">5</div>
+                <div class="kb-key" data-key="6">6</div>
+                <div class="kb-key" data-key="7">7</div>
+                <div class="kb-key" data-key="8">8</div>
+                <div class="kb-key" data-key="9">9</div>
+                <div class="kb-key" data-key="0">0</div>
             </div>
-            <div class="move-hint" id="move-hint">Type file A-H</div>
+            <div class="kb-row" id="row2">
+                <div class="kb-key" data-key="Q">Q</div>
+                <div class="kb-key" data-key="W">W</div>
+                <div class="kb-key" data-key="E">E</div>
+                <div class="kb-key" data-key="R">R</div>
+                <div class="kb-key" data-key="T">T</div>
+                <div class="kb-key" data-key="Y">Y</div>
+                <div class="kb-key" data-key="U">U</div>
+                <div class="kb-key" data-key="I">I</div>
+                <div class="kb-key" data-key="O">O</div>
+                <div class="kb-key" data-key="P">P</div>
+            </div>
+            <div class="kb-row" id="row3">
+                <div class="kb-key" data-key="A">A</div>
+                <div class="kb-key" data-key="S">S</div>
+                <div class="kb-key" data-key="D">D</div>
+                <div class="kb-key" data-key="F">F</div>
+                <div class="kb-key" data-key="G">G</div>
+                <div class="kb-key" data-key="H">H</div>
+                <div class="kb-key" data-key="J">J</div>
+                <div class="kb-key" data-key="K">K</div>
+                <div class="kb-key" data-key="L">L</div>
+                <div class="kb-key fn" data-key="NEWLINE">ENTER</div>
+            </div>
+            <div class="kb-row" id="row4">
+                <div class="kb-key fn" data-key="DEL">DEL</div>
+                <div class="kb-key" data-key="Z">Z</div>
+                <div class="kb-key" data-key="X">X</div>
+                <div class="kb-key" data-key="C">C</div>
+                <div class="kb-key" data-key="V">V</div>
+                <div class="kb-key" data-key="B">B</div>
+                <div class="kb-key" data-key="N">N</div>
+                <div class="kb-key" data-key="M">M</div>
+                <div class="kb-key" data-key=".">.</div>
+                <div class="kb-key fn" data-key="SPACE">SPACE</div>
+            </div>
         </div>
-        <div class="controls">
-            <button id="btn-start">&#9658; Start Game</button>
-            <button id="btn-reset">&#8635; Reset</button>
+        <div class="reset-bar">
+            <button class="reset-btn" id="btn-reset">RESET</button>
         </div>
-        <div class="status" id="status">Click Start Game to play! You are White.</div>
-        <div class="touch-keyboard" id="touch-keyboard"></div>
     </div>
-
-    <div class="instructions">
-        <h2>How to Play</h2>
-        <ol style="margin: 0; padding-left: 20px;">
-            <li><strong>Click "Start Game"</strong> - the board will appear</li>
-            <li><strong>Type your move</strong> - from-square then to-square (e.g., <code>E2E4</code>)</li>
-            <li><strong>Auto-submits</strong> after 4 characters. Backspace to correct.</li>
-        </ol>
-        <p style="margin-top: 15px;"><strong>Pieces:</strong> K=King, Q=Queen, R=Rook, B=Bishop, N=Knight, P=Pawn</p>
-        <p><strong>Colors:</strong> Normal text = White (you) &bull; Inverse/filled = Black (computer)</p>
-        <p><strong>Invalid moves</strong> are rejected - the board re-prompts for input.</p>
-    </div>
-
     <div class="footer">
-        <a href="https://github.com/Cronan/zx81-chess">View source on GitHub</a>
+        <a href="https://github.com/Cronan/zx81-chess">ZX81 1K Chess &middot; 672 bytes of Z80</a>
     </div>
 
     <script src="z80.js"></script>
@@ -204,12 +255,9 @@
         const CHESS_P = 'AAAAaURqRIJEAACDRH1AAACERIREAF1AAAIAAP///zd9QAAAAAAAjQwAAP//AAC8IRhAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAdYD6gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADUzJzc2MAABAwMFCTL3+Pn/AQcICe/x9voGCg8RBAIDBQYDAgTNPUHNdkGvMshAzexBzUxCzXZBzYVCIBY+CDLIQM2bQs1WQs12Qc2FQiAMw/VAIS9BzU5Edhj+ITdBzU5Edhj+PjQ6ADwuM/8uADwuM/8hgkAGQK93IxD8IYJAEedABggadyMTEPoGCD4BdyMQ/CGyQAYIPgl3IxD8EedABgga9gh3IxMQ+MnNKgoqDEAjPgDX1wYIPib11z4A1/E8EPc+dtcOCN0hukA+HIHXPgDXBgjd5dEaxdXN1EHXPgDX0cETEPE+dtfd5eER+P8Z5d3hDSDVPgDX1wYIPib11z4A1/E8EPfJpyADPhvJ9eYHXxYAIclAGX7Ry1rI9oDJPnbXPg/XzR9CMsNAXxYAIYJAGX6nKO/LXyDrPhbXzR9CMsRAXxYAIYJAGX6nyMtfwBjTzTxC1ibmB/XGJtfNPELWHeYH9cYd1/EHBwfRgsl2OiVA/v8o+PU+/zIlQPHJOsNATzrEQEcYCDrFQE86xkBHWRYAIYJAGX42AFgWACGCQBl35gf+AcB4/jgwB/4I0D4Nd8k+BXfJIYJABkAOAH7mB/4GIAEMIxD1ef4Cya8yx0A+/zLFQK/1XxYAIYJAGX6nKB3LXygZ5gdX8fVfev4BytVC/gLKTUP+Bsp5Q8OlQ/E8/kAg0cl71gg49E/NBESnIBs+Ac04RHvmOP4wIA971hBPzQREpyAFPgHNOER71gc4Bk/NEkMoAHvWCTgET80SQxi8e+YHR3nmB5AoMDAC7UT+AjAozQREpygiy18gHuYH5SHQQBYAGeHNBETmB9XlXxYAIdBAGX7h0c04RMkh30AGCMXlfk97gf5AMBVPzRFE/gMwDc0ERMtfIAbNIETNOEThwSMQ3MPOQiHXQAYIxeV+T3uB/kAwFU/NEUT+AjANzQREy18gBs0gRM04ROHBIxDcw85Cev4FPv8wCD5ay0IoAj6lIddABghXxeXVeuYBKDd+V3tHgv5AMC5P9XjmB0d55geQMALtRP4CMBvNBESnKA3LXyARzSBEzThE8RgJPgHNOETxGM3x0cs64cEjELnDzkLl1VkWACGCQBl+0eHJ1XvmB1d55geSMALtRNHJzQREpygP5gfl1V8WACHQQBl+0eHJPgHJ1Vc6x0C6MAx6MsdAezLFQHkyxkDRyX7+/8jXIxj4dgACDgD51B0iIR0gfgAAAECCdnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnaA';
 
         let cpu, zx81, running = false, frameInterval = null;
-        // Input state: exactly 4 positions, alternating file/rank
-        // Position 0: file (A-H), 1: rank (1-8), 2: file (A-H), 3: rank (1-8)
         let moveChars = [];
         let waitingForInput = true;
 
-        const HINTS = ['Type file A-H', 'Type rank 1-8', 'Type file A-H', 'Type rank 1-8'];
         const FILES = 'ABCDEFGH';
         const RANKS = '12345678';
 
@@ -221,13 +269,36 @@
             return RANKS.includes(k) ? k : null;
         }
 
+        // --- Keyboard highlight management ---
+        function updateKeyboard() {
+            const keys = document.querySelectorAll('.kb-key');
+            const pos = moveChars.length;
+
+            keys.forEach(el => {
+                const k = el.dataset.key;
+                let isValid = false;
+
+                if (running && waitingForInput && pos < 4) {
+                    if (k === 'DEL' && pos > 0) {
+                        isValid = true;
+                    } else if (isFilePosition(pos) && FILES.includes(k)) {
+                        isValid = true;
+                    } else if (!isFilePosition(pos) && RANKS.includes(k)) {
+                        isValid = true;
+                    }
+                }
+
+                el.classList.toggle('valid', isValid);
+            });
+        }
+
         function updateMoveDisplay() {
             for (let i = 0; i < 4; i++) {
                 const el = document.getElementById('s' + i);
                 if (i < moveChars.length) {
                     el.textContent = moveChars[i];
                     el.className = 'move-slot filled';
-                } else if (i === moveChars.length && waitingForInput) {
+                } else if (i === moveChars.length && waitingForInput && running) {
                     el.textContent = '_';
                     el.className = 'move-slot active';
                 } else {
@@ -235,153 +306,32 @@
                     el.className = 'move-slot';
                 }
             }
-            const hint = document.getElementById('move-hint');
+
+            const status = document.getElementById('status');
             if (!running) {
-                hint.textContent = '';
+                status.textContent = '';
             } else if (!waitingForInput) {
-                hint.textContent = 'Computer thinking...';
-            } else if (moveChars.length < 4) {
-                hint.textContent = HINTS[moveChars.length];
+                status.textContent = 'Computer thinking\u2026';
             } else {
-                hint.textContent = '';
+                const hints = ['File A\u2013H', 'Rank 1\u20138', 'File A\u2013H', 'Rank 1\u20138'];
+                status.textContent = moveChars.length < 4 ? hints[moveChars.length] : 'Your turn';
             }
-            updateTouchKeyboard();
+
+            updateKeyboard();
         }
 
-        function updateTouchKeyboard() {
-            const container = document.getElementById('touch-keyboard');
-            if (!running || !waitingForInput) {
-                container.innerHTML = '';
-                return;
-            }
-            const pos = moveChars.length;
-            if (pos >= 4) { container.innerHTML = ''; return; }
-
-            const keys = isFilePosition(pos) ? FILES.split('') : RANKS.split('');
-            let html = '<div class="key-row">';
-            for (const k of keys) {
-                html += `<button class="key" data-key="${k}">${k}</button>`;
-            }
-            html += '</div>';
-            if (moveChars.length > 0) {
-                html += '<div class="key-row"><button class="key" data-key="Backspace">&#9003; Undo</button></div>';
-            }
-            container.innerHTML = html;
+        // --- Flash + haptic feedback ---
+        function flashKey(el) {
+            el.classList.add('flash');
+            setTimeout(() => el.classList.remove('flash'), 80);
+            if (navigator.vibrate) navigator.vibrate(15);
         }
 
-        function init() {
-            cpu = new Z80();
-            zx81 = new ZX81(cpu, document.getElementById('screen'));
-            zx81.initSystemVars();
-
-            const binary = atob(CHESS_P);
-            const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-            zx81.loadPFile(bytes);
-
-            zx81.render();
-            moveChars = [];
-            waitingForInput = true;
-            document.getElementById('status').textContent = 'Click Start Game to play! You are White.';
-            updateMoveDisplay();
-        }
-
-        // Core frame execution
-        let frameCount = 0;
-        let thinkingStartFrame = 0;
-
-        function runFrame() {
-            if (!running) return false;
-
-            let hitHalt = false;
-            for (let i = 0; i < 100000 && running; i++) {
-                if (cpu.pc === 0) { running = false; break; }
-                const result = cpu.step();
-
-                if (result === 'halt') {
-                    const key = zx81.getKey();
-                    if (key !== 0xFF) {
-                        cpu.ww(0x4025, key);
-                    } else {
-                        cpu.ww(0x4025, 0xFFFF);
-                    }
-                    cpu.halted = false;
-                    hitHalt = true;
-                    break;
-                }
-                if (result === 'error') {
-                    running = false;
-                    document.getElementById('status').textContent = 'Error at $' + cpu.pc.toString(16);
-                    break;
-                }
-            }
-
-            frameCount++;
-
-            // Detect thinking vs waiting for input
-            if (!hitHalt && running) {
-                if (thinkingStartFrame === 0) thinkingStartFrame = frameCount;
-                waitingForInput = false;
-            } else {
-                if (thinkingStartFrame > 0) {
-                    // Computer finished thinking
-                    thinkingStartFrame = 0;
-                    waitingForInput = true;
-                    moveChars = [];
-                }
-            }
-
-            zx81.render();
-
-            // Status line
-            if (!waitingForInput) {
-                document.getElementById('status').textContent = 'Computer is thinking...';
-            } else if (zx81.keyBuffer.length > 0) {
-                document.getElementById('status').textContent = 'Processing move...';
-            } else {
-                document.getElementById('status').textContent = 'Your turn!';
-            }
-
-            updateMoveDisplay();
-            return running;
-        }
-
-        function start() {
-            if (running) {
-                running = false;
-                if (frameInterval) { clearInterval(frameInterval); frameInterval = null; }
-                document.getElementById('btn-start').innerHTML = '&#9658; Resume';
-                document.getElementById('status').textContent = 'Paused';
-                return;
-            }
-
-            running = true;
-            moveChars = [];
-            frameCount = 0;
-            thinkingStartFrame = 0;
-            waitingForInput = true;
-            document.getElementById('btn-start').innerHTML = '&#10074;&#10074; Pause';
-
-            cpu.sp = 0x7FFF;  // Stack must be above code (code ends at 0x4455)
-            cpu.pc = 0x40EF;  // Entry point: start label (after data tables)
-            cpu.ww(0x4025, 0xFFFF);  // LAST_K = no key
-
-            updateMoveDisplay();
-            runFrame();
-            frameInterval = setInterval(runFrame, 50);
-        }
-
-        function sendMove() {
-            if (moveChars.length !== 4) return;
-            for (const ch of moveChars) {
-                const code = zx81.keyMap[ch];
-                if (code !== undefined) zx81.keyBuffer.push(code);
-            }
-        }
-
+        // --- Input handling ---
         function handleKey(key) {
             if (!running || !waitingForInput) return;
-            if (key === 'Backspace' || key === 'Delete') {
+
+            if (key === 'DEL' || key === 'Backspace' || key === 'Delete') {
                 if (moveChars.length > 0) {
                     moveChars.pop();
                     updateMoveDisplay();
@@ -398,12 +348,93 @@
             moveChars.push(valid);
             updateMoveDisplay();
 
-            // Auto-submit when all 4 characters entered
             if (moveChars.length === 4) {
                 sendMove();
             }
         }
 
+        function sendMove() {
+            if (moveChars.length !== 4) return;
+            for (const ch of moveChars) {
+                const code = zx81.keyMap[ch];
+                if (code !== undefined) zx81.keyBuffer.push(code);
+            }
+        }
+
+        // --- Emulator ---
+        let frameCount = 0;
+        let thinkingStartFrame = 0;
+
+        function runFrame() {
+            if (!running) return;
+
+            let hitHalt = false;
+            for (let i = 0; i < 100000 && running; i++) {
+                if (cpu.pc === 0) { running = false; break; }
+                const result = cpu.step();
+                if (result === 'halt') {
+                    const key = zx81.getKey();
+                    cpu.ww(0x4025, key !== 0xFF ? key : 0xFFFF);
+                    cpu.halted = false;
+                    hitHalt = true;
+                    break;
+                }
+                if (result === 'error') {
+                    running = false;
+                    document.getElementById('status').textContent = 'Error at $' + cpu.pc.toString(16);
+                    break;
+                }
+            }
+
+            frameCount++;
+
+            if (!hitHalt && running) {
+                if (thinkingStartFrame === 0) thinkingStartFrame = frameCount;
+                waitingForInput = false;
+            } else {
+                if (thinkingStartFrame > 0) {
+                    thinkingStartFrame = 0;
+                    waitingForInput = true;
+                    moveChars = [];
+                }
+            }
+
+            zx81.render();
+            updateMoveDisplay();
+        }
+
+        function init() {
+            cpu = new Z80();
+            zx81 = new ZX81(cpu, document.getElementById('screen'));
+            zx81.initSystemVars();
+
+            const binary = atob(CHESS_P);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            zx81.loadPFile(bytes);
+
+            zx81.render();
+        }
+
+        function start() {
+            running = true;
+            moveChars = [];
+            frameCount = 0;
+            thinkingStartFrame = 0;
+            waitingForInput = true;
+
+            cpu.sp = 0x7FFF;
+            cpu.pc = 0x40EF;
+            cpu.ww(0x4025, 0xFFFF);
+
+            updateMoveDisplay();
+            runFrame();
+            frameInterval = setInterval(runFrame, 50);
+        }
+
+        // --- Event listeners ---
+
+        // Physical keyboard
         document.addEventListener('keydown', (e) => {
             if (/^[a-hA-H1-8]$/.test(e.key) || e.key === 'Backspace' || e.key === 'Delete') {
                 e.preventDefault();
@@ -411,26 +442,29 @@
             }
         });
 
-        document.getElementById('btn-start').onclick = start;
+        // Touch keyboard - use pointer events for immediate response
+        document.getElementById('keyboard').addEventListener('pointerdown', (e) => {
+            const el = e.target.closest('.kb-key');
+            if (!el || !el.classList.contains('valid')) return;
+            e.preventDefault();
+            flashKey(el);
+            handleKey(el.dataset.key);
+        });
+
+        // Prevent context menu on long-press
+        document.getElementById('keyboard').addEventListener('contextmenu', (e) => e.preventDefault());
+
+        // Reset
         document.getElementById('btn-reset').onclick = () => {
             running = false;
             if (frameInterval) { clearInterval(frameInterval); frameInterval = null; }
             init();
-            document.getElementById('btn-start').innerHTML = '&#9658; Start Game';
+            start();
         };
 
-        // Touch keyboard - delegated event handling
-        document.getElementById('touch-keyboard').addEventListener('touchend', (e) => {
-            e.preventDefault();
-            const key = e.target.dataset.key;
-            if (key) handleKey(key);
-        });
-        document.getElementById('touch-keyboard').addEventListener('click', (e) => {
-            const key = e.target.dataset.key;
-            if (key) handleKey(key);
-        });
-
+        // Auto-start on load
         init();
+        start();
     </script>
 </body>
 </html>
