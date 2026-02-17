@@ -359,15 +359,17 @@
                 const code = zx81.keyMap[ch];
                 if (code !== undefined) zx81.keyBuffer.push(code);
             }
+            // Clear immediately so keyboard re-enables after computer responds,
+            // even if think completes within a single frame
+            moveChars = [];
+            updateMoveDisplay();
         }
 
         // --- Emulator ---
-        let frameCount = 0;
-        let thinkingStartFrame = 0;
-
         function runFrame() {
             if (!running) return;
 
+            const wasWaiting = waitingForInput;
             let hitHalt = false;
             for (let i = 0; i < 100000 && running; i++) {
                 if (cpu.pc === 0) { running = false; break; }
@@ -386,17 +388,16 @@
                 }
             }
 
-            frameCount++;
-
+            // State detection: HALT = waiting for key, no HALT = computing
             if (!hitHalt && running) {
-                if (thinkingStartFrame === 0) thinkingStartFrame = frameCount;
                 waitingForInput = false;
-            } else {
-                if (thinkingStartFrame > 0) {
-                    thinkingStartFrame = 0;
-                    waitingForInput = true;
-                    moveChars = [];
-                }
+            } else if (hitHalt) {
+                waitingForInput = true;
+            }
+
+            // Clear move input on transition from computing back to waiting
+            if (waitingForInput && !wasWaiting) {
+                moveChars = [];
             }
 
             zx81.render();
@@ -419,8 +420,6 @@
         function start() {
             running = true;
             moveChars = [];
-            frameCount = 0;
-            thinkingStartFrame = 0;
             waitingForInput = true;
 
             cpu.sp = 0x7FFF;
