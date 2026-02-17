@@ -438,8 +438,8 @@ gpc_piece:
             ld      a, (hl)         ; Get display character
 
             ; Now check if it's a black piece (bit 3 set)
-            pop     de              ; D/E = original piece code (in E)
-            bit     3, e            ; Test colour bit
+            pop     de              ; D = original piece code, E = flags (from push af)
+            bit     3, d            ; Test colour bit
             ret     z               ; White piece - return as-is
             or      CH_INV          ; Black piece - set inverse video bit
             ret
@@ -534,8 +534,8 @@ get_square:
             rlca                    ; * 2
             rlca                    ; * 4
             rlca                    ; * 8
-            pop     de              ; D = garbage, E = file number
-            add     a, e            ; A = rank*8 + file = board index
+            pop     de              ; D = file number, E = flags (from push af)
+            add     a, d            ; A = rank*8 + file = board index
             ret
 
 ; --- Wait for a keypress ---
