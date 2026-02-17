@@ -921,14 +921,17 @@ gk_skip:    pop     hl
 
 gen_slider:
             ; D = piece type (3=Bishop, 4=Rook, 5=Queen)
+            ; Determine direction mask without clobbering A before comparisons.
+            ; Uses CP 5 first (queen >= 5), then BIT 0,D to distinguish
+            ; bishop (3, odd) from rook (4, even). Same byte count as before.
             ld      a, d
-            cp      3
-            ld      a, $A5          ; Bishop mask (diagonals only)
-            jr      z, gs_go
-            cp      4
-            ld      a, $5A          ; Rook mask (orthogonals only)
-            jr      z, gs_go
+            cp      5
             ld      a, $FF          ; Queen mask (all directions)
+            jr      nc, gs_go
+            ld      a, $5A          ; Rook mask (orthogonals only)
+            bit     0, d            ; Bishop=3 (odd), Rook=4 (even)
+            jr      z, gs_go
+            ld      a, $A5          ; Bishop mask (diagonals only)
 
 gs_go:      ld      hl, king_dirs
             ld      b, 8            ; 8 directions to try
