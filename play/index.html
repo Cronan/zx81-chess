@@ -312,7 +312,7 @@
             document.getElementById('btn-start').innerHTML = '&#10074;&#10074; Pause';
             updateInputDisplay();
 
-            cpu.sp = 0x43FF;
+            cpu.sp = 0x7FFF;  // Stack must be above code (code ends at 0x4455)
             cpu.pc = 0x40EF;  // Entry point: start label (after data tables)
             cpu.ww(0x4025, 0xFFFF);  // LAST_K = no key (word)
 
