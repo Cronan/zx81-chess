@@ -14,8 +14,12 @@ class ZX81 {
         this.charWidth = 8;
         this.charHeight = 8;
 
-        this.canvas.width = 32 * this.charWidth * this.scale;
-        this.canvas.height = 24 * this.charHeight * this.scale;
+        // Crop to the board area: 18 cols (rank# + space + 8*(piece+space)),
+        // 12 rows (header + 8 ranks + footer + prompt + spare)
+        this.cropCols = 18;
+        this.cropRows = 12;
+        this.canvas.width = this.cropCols * this.charWidth * this.scale;
+        this.canvas.height = this.cropRows * this.charHeight * this.scale;
 
         this.keyBuffer = [];
         this.keyMap = this.createKeyMap();
@@ -186,11 +190,13 @@ class ZX81 {
         // Skip initial newline if present
         if (this.cpu.rb(addr) === 0x76) addr++;
 
-        for (let row = 0; row < 24; row++) {
+        for (let row = 0; row < this.cropRows; row++) {
             for (let col = 0; col < 32; col++) {
                 const char = this.cpu.rb(addr);
                 if (char === 0x76) break; // End of row
-                this.drawChar(col, row, char);
+                if (col < this.cropCols) {
+                    this.drawChar(col, row, char);
+                }
                 addr++;
             }
             // Find next newline
