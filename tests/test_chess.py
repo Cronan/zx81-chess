@@ -37,6 +37,13 @@ B_ROOK = 12
 B_QUEEN = 13
 B_KING = 14
 
+# ZX81 key codes for files A-H
+ZX_A, ZX_B, ZX_C, ZX_D = 0x26, 0x27, 0x28, 0x29
+ZX_E, ZX_F, ZX_G, ZX_H = 0x2A, 0x2B, 0x2C, 0x2D
+# ZX81 key codes for ranks 1-8
+ZX_1, ZX_2, ZX_3, ZX_4 = 0x1D, 0x1E, 0x1F, 0x20
+ZX_5, ZX_6, ZX_7, ZX_8 = 0x21, 0x22, 0x23, 0x24
+
 
 class ChessTest:
     """Test harness for ZX81 chess routines."""
@@ -85,6 +92,56 @@ class ChessTest:
         f = ord(file.lower()) - ord('a')
         r = rank - 1
         return r * 8 + f
+
+    def find_think(self, cpu):
+        """Find think routine address."""
+        for addr in range(self.start_addr, self.start_addr + 200):
+            if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
+                cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
+                return cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
+        raise RuntimeError("Could not find think routine")
+
+    def find_get_move(self, cpu):
+        """Find get_move routine address (3rd CALL from start, offset 10)."""
+        return self.find_routine(cpu, 10)
+
+    def find_get_square(self, cpu):
+        """Find get_square routine address (called from get_move)."""
+        get_move = self.find_get_move(cpu)
+        # get_move starts: LD A,$76 / RST $10 / LD A,$0F / RST $10 / CALL get_square
+        # = 3E 76 D7 3E 0F D7 CD xx xx
+        call_addr = get_move + 6
+        assert cpu.rb(call_addr) == 0xCD, f"Expected CALL at get_move+6, got 0x{cpu.rb(call_addr):02x}"
+        return cpu.rb(call_addr + 1) | (cpu.rb(call_addr + 2) << 8)
+
+    def find_cls_and_draw(self, cpu):
+        """Find cls_and_draw routine (2nd CALL from start, offset 3)."""
+        return self.find_routine(cpu, 3)
+
+    def find_get_piece_char(self, cpu):
+        """Find get_piece_char by scanning cls_and_draw for CALL in col_loop."""
+        draw_addr = self.find_cls_and_draw(cpu)
+        # Scan forward for the CALL inside the column loop
+        for addr in range(draw_addr + 30, draw_addr + 120):
+            if cpu.rb(addr) == 0xCD:
+                target = cpu.rb(addr + 1) | (cpu.rb(addr + 2) << 8)
+                # get_piece_char starts with AND A (0xA7)
+                if cpu.rb(target) == 0xA7:
+                    return target
+        raise RuntimeError("Could not find get_piece_char routine")
+
+    def setup_cpu_with_keys(self, keys):
+        """Create CPU with keyboard input queue."""
+        cpu = self.setup_cpu()
+        cpu.key_queue = list(keys)
+        cpu.display_output = []
+        cpu.display_line = []
+        return cpu
+
+    def init_board(self, cpu):
+        """Initialize the chess board."""
+        init_addr = self.find_routine(cpu, 0)
+        self.call_routine(cpu, init_addr)
 
 
 def test_board_init():
@@ -699,6 +756,526 @@ def test_slider_blocked():
     print("  PASS: slider blocked by own pieces")
 
 
+def test_get_square():
+    """Test get_square converts keyboard input to correct board index."""
+    t = ChessTest()
+
+    test_cases = [
+        # (file_key, rank_key, expected_index, description)
+        (ZX_A, ZX_1, 0,  "a1"),
+        (ZX_E, ZX_2, 12, "e2"),
+        (ZX_E, ZX_4, 28, "e4"),
+        (ZX_H, ZX_8, 63, "h8"),
+        (ZX_A, ZX_8, 56, "a8"),
+        (ZX_H, ZX_1, 7,  "h1"),
+        (ZX_D, ZX_5, 35, "d5"),
+    ]
+
+    get_sq_addr = None
+    for file_key, rank_key, expected, desc in test_cases:
+        cpu = t.setup_cpu_with_keys([file_key, rank_key])
+        if get_sq_addr is None:
+            get_sq_addr = t.find_get_square(cpu)
+        cpu.push(0x0000)
+        cpu.run(get_sq_addr)
+        assert cpu.a == expected, f"get_square({desc}): expected {expected}, got {cpu.a}"
+
+    print("  PASS: get_square keyboard input")
+
+
+def test_get_move_valid():
+    """Test get_move processes a valid 4-key move input."""
+    t = ChessTest()
+    cpu = t.setup_cpu_with_keys([ZX_E, ZX_2, ZX_E, ZX_4])
+    t.init_board(cpu)
+
+    get_move_addr = t.find_get_move(cpu)
+    cpu.push(0x0000)
+    result = cpu.run(get_move_addr, stop_on_halt_no_keys=True)
+
+    move_from = cpu.rb(MOVE_FROM)
+    move_to = cpu.rb(MOVE_TO)
+    assert result == "returned", f"get_move should return normally, got {result}"
+    assert move_from == t.sq('e', 2), f"move_from should be e2 (12), got {move_from}"
+    assert move_to == t.sq('e', 4), f"move_to should be e4 (28), got {move_to}"
+
+    print("  PASS: get_move valid input (E2E4)")
+
+
+def test_get_move_rejects_empty():
+    """Test get_move rejects selecting an empty source square."""
+    t = ChessTest()
+    # First try empty square e4, then valid e2->e4
+    cpu = t.setup_cpu_with_keys([ZX_E, ZX_4, ZX_E, ZX_2, ZX_E, ZX_4])
+    t.init_board(cpu)
+
+    get_move_addr = t.find_get_move(cpu)
+    cpu.push(0x0000)
+    result = cpu.run(get_move_addr, stop_on_halt_no_keys=True)
+
+    move_from = cpu.rb(MOVE_FROM)
+    move_to = cpu.rb(MOVE_TO)
+    assert result == "returned", f"get_move should eventually succeed, got {result}"
+    assert move_from == t.sq('e', 2), f"After retry, from should be e2, got {move_from}"
+    assert move_to == t.sq('e', 4), f"After retry, to should be e4, got {move_to}"
+
+    print("  PASS: get_move rejects empty source")
+
+
+def test_get_move_rejects_black_source():
+    """Test get_move rejects selecting a black piece as source."""
+    t = ChessTest()
+    # Try black pawn a7, then valid a2->a3
+    cpu = t.setup_cpu_with_keys([ZX_A, ZX_7, ZX_A, ZX_2, ZX_A, ZX_3])
+    t.init_board(cpu)
+
+    get_move_addr = t.find_get_move(cpu)
+    cpu.push(0x0000)
+    result = cpu.run(get_move_addr, stop_on_halt_no_keys=True)
+
+    move_from = cpu.rb(MOVE_FROM)
+    assert result == "returned"
+    assert move_from == t.sq('a', 2), f"After retry, from should be a2, got {move_from}"
+
+    print("  PASS: get_move rejects black piece source")
+
+
+def test_get_move_rejects_own_dest():
+    """Test get_move rejects moving onto own piece."""
+    t = ChessTest()
+    # Try e1 (king) to d1 (queen) - own piece dest, then valid e2->e4
+    cpu = t.setup_cpu_with_keys([ZX_E, ZX_1, ZX_D, ZX_1,
+                                  ZX_E, ZX_2, ZX_E, ZX_4])
+    t.init_board(cpu)
+
+    get_move_addr = t.find_get_move(cpu)
+    cpu.push(0x0000)
+    result = cpu.run(get_move_addr, stop_on_halt_no_keys=True)
+
+    move_from = cpu.rb(MOVE_FROM)
+    move_to = cpu.rb(MOVE_TO)
+    assert result == "returned"
+    assert move_from == t.sq('e', 2), f"After retry, from should be e2, got {move_from}"
+    assert move_to == t.sq('e', 4), f"After retry, to should be e4, got {move_to}"
+
+    print("  PASS: get_move rejects own piece destination")
+
+
+def test_get_piece_char():
+    """Test get_piece_char returns correct display characters."""
+    t = ChessTest()
+    cpu = t.setup_cpu()
+    gpc_addr = t.find_get_piece_char(cpu)
+
+    # ZX81 character codes
+    CH_SPACE = 0x00
+    CH_P, CH_N, CH_B, CH_R, CH_Q, CH_K = 0x35, 0x33, 0x27, 0x37, 0x36, 0x30
+    CH_DOT = 0x1B
+    CH_INV = 0x80
+
+    test_cases = [
+        (EMPTY,    CH_DOT,        "empty square"),
+        (W_PAWN,   CH_P,          "white pawn"),
+        (W_KNIGHT, CH_N,          "white knight"),
+        (W_BISHOP, CH_B,          "white bishop"),
+        (W_ROOK,   CH_R,          "white rook"),
+        (W_QUEEN,  CH_Q,          "white queen"),
+        (W_KING,   CH_K,          "white king"),
+        (B_PAWN,   CH_P | CH_INV, "black pawn (inverse)"),
+        (B_KNIGHT, CH_N | CH_INV, "black knight (inverse)"),
+        (B_BISHOP, CH_B | CH_INV, "black bishop (inverse)"),
+        (B_ROOK,   CH_R | CH_INV, "black rook (inverse)"),
+        (B_QUEEN,  CH_Q | CH_INV, "black queen (inverse)"),
+        (B_KING,   CH_K | CH_INV, "black king (inverse)"),
+    ]
+
+    for piece_code, expected_char, desc in test_cases:
+        cpu2 = t.setup_cpu()
+        cpu2.a = piece_code
+        cpu2.push(0x0000)
+        cpu2.run(gpc_addr)
+        assert cpu2.a == expected_char, \
+            f"get_piece_char({desc}): expected 0x{expected_char:02x}, got 0x{cpu2.a:02x}"
+
+    print("  PASS: get_piece_char display characters")
+
+
+def test_cls_and_draw():
+    """Test cls_and_draw renders board to display output."""
+    t = ChessTest()
+    cpu = t.setup_cpu()
+    cpu.display_output = []
+    cpu.display_line = []
+
+    t.init_board(cpu)
+
+    draw_addr = t.find_cls_and_draw(cpu)
+    cpu.push(0x0000)
+    cpu.run(draw_addr)
+
+    # Flush remaining line
+    if cpu.display_line:
+        cpu.display_output.append(''.join(cpu.display_line))
+
+    output = '\n'.join(cpu.display_output)
+
+    # Verify column headers
+    assert any('A' in line and 'H' in line for line in cpu.display_output), \
+        "Display should include column headers A-H"
+
+    # Verify rank numbers
+    assert any('8' in line for line in cpu.display_output), "Display should include rank 8"
+    assert any('1' in line for line in cpu.display_output), "Display should include rank 1"
+
+    # Verify pieces are present - white pieces are uppercase, black are lowercase
+    assert any('R' in line and 'K' in line for line in cpu.display_output), \
+        "Display should show white pieces (R, K)"
+    assert any('r' in line and 'k' in line for line in cpu.display_output), \
+        "Display should show black pieces (r, k) in inverse"
+
+    # Verify 8 rows of board data
+    rank_lines = [line for line in cpu.display_output if line and line[0].isdigit()]
+    assert len(rank_lines) == 8, f"Should have 8 rank lines, got {len(rank_lines)}"
+
+    print("  PASS: cls_and_draw display rendering")
+
+
+def test_full_game_turn():
+    """Test a complete game turn: player move + computer response."""
+    t = ChessTest()
+    # Queue E2E4 move
+    cpu = t.setup_cpu_with_keys([ZX_E, ZX_2, ZX_E, ZX_4])
+
+    # Run from start entry point
+    cpu.push(0x0000)
+    result = cpu.run(t.start_addr, stop_on_halt_no_keys=True)
+
+    # Player's move: e2 pawn should be on e4 now
+    assert t.get_piece(cpu, t.sq('e', 2)) == EMPTY, "e2 should be empty after E2E4"
+    assert t.get_piece(cpu, t.sq('e', 4)) == W_PAWN, "e4 should have white pawn"
+
+    # Computer should have made a move (some black piece moved)
+    board_state = [cpu.rb(BOARD + i) for i in range(64)]
+    # Count black pieces - should still be 16 (no captures possible on first move)
+    black_count = sum(1 for p in board_state if p & 0x08)
+    assert black_count == 16, f"All 16 black pieces should remain, found {black_count}"
+
+    # Black pawns on rank 7: at least one should have moved
+    rank7_pawns = sum(1 for i in range(48, 56) if board_state[i] == B_PAWN)
+    assert rank7_pawns < 8, "Computer should have moved at least one piece"
+
+    print("  PASS: full game turn (player + computer)")
+
+
+def test_knight_h_file_edge():
+    """Test knight on h-file doesn't wrap to a-file."""
+    t = ChessTest()
+    cpu = t.setup_cpu()
+
+    t.clear_board(cpu)
+    h4 = t.sq('h', 4)
+    t.set_piece(cpu, h4, B_KNIGHT)
+
+    cpu.wb(SIDE, 8)
+    think_addr = t.find_think(cpu)
+    t.call_routine(cpu, think_addr)
+
+    best_to = cpu.rb(BEST_TO)
+    best_to_col = best_to & 7
+
+    # From h4, valid knight targets: f3, f5, g2, g6
+    # Invalid (wrapping): a3, a5, b2, b6 etc.
+    valid_targets = [t.sq('f', 3), t.sq('f', 5), t.sq('g', 2), t.sq('g', 6)]
+    assert best_to in valid_targets, \
+        f"Knight from h4 went to col {best_to_col}, square {best_to}, expected one of {valid_targets}"
+
+    print("  PASS: knight h-file edge (no wrap)")
+
+
+def test_knight_h8_corner():
+    """Test knight in h8 corner has limited valid moves."""
+    t = ChessTest()
+    cpu = t.setup_cpu()
+
+    t.clear_board(cpu)
+    h8 = t.sq('h', 8)
+    t.set_piece(cpu, h8, B_KNIGHT)
+
+    cpu.wb(SIDE, 8)
+    think_addr = t.find_think(cpu)
+    t.call_routine(cpu, think_addr)
+
+    best_to = cpu.rb(BEST_TO)
+    # From h8, valid knight moves: f7, g6
+    valid_targets = [t.sq('f', 7), t.sq('g', 6)]
+    assert best_to in valid_targets, \
+        f"Knight from h8 went to {best_to}, expected one of {valid_targets}"
+
+    print("  PASS: knight h8 corner")
+
+
+def test_pawn_a_file_no_wrap():
+    """Test black pawn on a-file doesn't capture wrapping to h-file."""
+    t = ChessTest()
+    cpu = t.setup_cpu()
+
+    t.clear_board(cpu)
+    # Black pawn on a4
+    a4 = t.sq('a', 4)
+    t.set_piece(cpu, a4, B_PAWN)
+    # White piece on h3 - should NOT be capturable by wrapping
+    h3 = t.sq('h', 3)
+    t.set_piece(cpu, h3, W_QUEEN)
+
+    cpu.wb(SIDE, 8)
+    think_addr = t.find_think(cpu)
+    t.call_routine(cpu, think_addr)
+
+    best_to = cpu.rb(BEST_TO)
+    # Pawn on a4 can go to a3 (forward) or b3 (capture right), NOT h3
+    assert best_to != h3, f"Pawn on a-file should not capture on h-file by wrapping!"
+    valid_targets = [t.sq('a', 3), t.sq('b', 3)]
+    assert best_to in valid_targets, f"Pawn from a4 went to {best_to}, expected {valid_targets}"
+
+    print("  PASS: pawn a-file no wrap capture")
+
+
+def test_pawn_h_file_no_wrap():
+    """Test black pawn on h-file doesn't capture wrapping to a-file."""
+    t = ChessTest()
+    cpu = t.setup_cpu()
+
+    t.clear_board(cpu)
+    h5 = t.sq('h', 5)
+    t.set_piece(cpu, h5, B_PAWN)
+    # White queen on a4 - should NOT be capturable by wrapping
+    a4 = t.sq('a', 4)
+    t.set_piece(cpu, a4, W_QUEEN)
+
+    cpu.wb(SIDE, 8)
+    think_addr = t.find_think(cpu)
+    t.call_routine(cpu, think_addr)
+
+    best_to = cpu.rb(BEST_TO)
+    assert best_to != a4, f"Pawn on h-file should not capture on a-file by wrapping!"
+    valid_targets = [t.sq('h', 4), t.sq('g', 4)]
+    assert best_to in valid_targets, f"Pawn from h5 went to {best_to}, expected {valid_targets}"
+
+    print("  PASS: pawn h-file no wrap capture")
+
+
+def test_bishop_edge_no_wrap():
+    """Test bishop diagonal doesn't wrap around board edges."""
+    t = ChessTest()
+    cpu = t.setup_cpu()
+
+    t.clear_board(cpu)
+    # Bishop on h4 sliding NE should stop at edge, not wrap to a5
+    h4 = t.sq('h', 4)
+    t.set_piece(cpu, h4, B_BISHOP)
+    # Place a tempting target on a5 - should be unreachable diagonally from h4
+    a5 = t.sq('a', 5)
+    t.set_piece(cpu, a5, W_QUEEN)
+
+    cpu.wb(SIDE, 8)
+    think_addr = t.find_think(cpu)
+    t.call_routine(cpu, think_addr)
+
+    best_to = cpu.rb(BEST_TO)
+    # Bishop from h4 can go: g3, f2, e1 (SW diagonal) and g5, f6, e7, d8 (NW diagonal)
+    assert best_to != a5, f"Bishop should not wrap from h-file to a-file!"
+
+    # All valid bishop targets from h4
+    valid_sw = [t.sq('g', 3), t.sq('f', 2), t.sq('e', 1)]
+    valid_nw = [t.sq('g', 5), t.sq('f', 6), t.sq('e', 7), t.sq('d', 8)]
+    valid = valid_sw + valid_nw
+    assert best_to in valid, f"Bishop from h4 went to {best_to}, not in valid set"
+
+    print("  PASS: bishop edge no wrap")
+
+
+def test_rook_edge_no_wrap():
+    """Test rook on h-file moving east doesn't wrap to a-file."""
+    t = ChessTest()
+    cpu = t.setup_cpu()
+
+    t.clear_board(cpu)
+    h4 = t.sq('h', 4)
+    t.set_piece(cpu, h4, B_ROOK)
+    # Place queen on a4 - rook can reach via rank (westward), but NOT by wrapping east
+    a4 = t.sq('a', 4)
+    t.set_piece(cpu, a4, W_QUEEN)
+
+    cpu.wb(SIDE, 8)
+    think_addr = t.find_think(cpu)
+    t.call_routine(cpu, think_addr)
+
+    best_to = cpu.rb(BEST_TO)
+    # Rook should capture queen on a4 (going west along rank 4)
+    assert best_to == a4, f"Rook should capture queen on a4, got {best_to}"
+
+    print("  PASS: rook edge wrapping")
+
+
+def test_pawn_no_double_from_wrong_rank():
+    """Test black pawn can't move 2 squares from non-starting rank."""
+    t = ChessTest()
+    cpu = t.setup_cpu()
+
+    t.clear_board(cpu)
+    # Black pawn on e5 (rank 5, NOT starting rank 7)
+    e5 = t.sq('e', 5)
+    t.set_piece(cpu, e5, B_PAWN)
+
+    cpu.wb(SIDE, 8)
+    think_addr = t.find_think(cpu)
+    t.call_routine(cpu, think_addr)
+
+    best_to = cpu.rb(BEST_TO)
+    e4 = t.sq('e', 4)  # One square forward
+    e3 = t.sq('e', 3)  # Two squares forward (should be illegal)
+    assert best_to == e4, f"Pawn from e5 should only go to e4, got {best_to}"
+    assert best_to != e3, "Pawn should not double-move from rank 5"
+
+    print("  PASS: pawn no double move from wrong rank")
+
+
+def test_promotion_with_capture():
+    """Test pawn promotion works when capturing on the last rank."""
+    t = ChessTest()
+    cpu = t.setup_cpu()
+
+    t.clear_board(cpu)
+    # White pawn on d7, black rook on e8 - capture and promote
+    d7 = t.sq('d', 7)
+    e8 = t.sq('e', 8)
+    t.set_piece(cpu, d7, W_PAWN)
+    t.set_piece(cpu, e8, B_ROOK)
+
+    cpu.wb(MOVE_FROM, d7)
+    cpu.wb(MOVE_TO, e8)
+
+    # Find make_move (4th CALL from start)
+    make_move_addr = None
+    call_count = 0
+    for addr in range(t.start_addr, t.start_addr + 60):
+        if cpu.rb(addr) == 0xCD:
+            call_count += 1
+            if call_count == 4:
+                make_move_addr = cpu.rb(addr + 1) | (cpu.rb(addr + 2) << 8)
+                break
+
+    assert make_move_addr, "Could not find make_move"
+    cpu.sp = 0x7FFF
+    t.call_routine(cpu, make_move_addr)
+
+    assert t.get_piece(cpu, d7) == EMPTY, "d7 should be empty"
+    assert t.get_piece(cpu, e8) == W_QUEEN, \
+        f"e8 should be white queen after promotion+capture, got {t.get_piece(cpu, e8)}"
+
+    print("  PASS: pawn promotion with capture")
+
+
+def test_game_over_white_wins():
+    """Test game over detection when black king is captured."""
+    t = ChessTest()
+    cpu = t.setup_cpu()
+    t.init_board(cpu)
+
+    # Find check_kings
+    check_kings_addr = None
+    for addr in range(t.start_addr + 10, t.start_addr + 100):
+        if cpu.rb(addr) == 0xCD:
+            next_op = cpu.rb(addr + 3)
+            if next_op == 0x20:  # JR NZ
+                check_kings_addr = cpu.rb(addr + 1) | (cpu.rb(addr + 2) << 8)
+                break
+
+    assert check_kings_addr, "Could not find check_kings"
+
+    # Remove black king - simulates capture
+    bk_pos = t.sq('e', 8)
+    assert t.get_piece(cpu, bk_pos) == B_KING
+    t.set_piece(cpu, bk_pos, EMPTY)
+
+    cpu.sp = 0x7FFF
+    t.call_routine(cpu, check_kings_addr)
+
+    # Z flag should be CLEAR (only 1 king found, cp 2 gives NZ)
+    z_flag = cpu.get_flag(cpu.FLAG_Z)
+    assert not z_flag, "Z should be clear when black king is missing (game over)"
+
+    print("  PASS: game over detection (white wins)")
+
+
+def test_game_over_black_wins():
+    """Test game over detection when white king is captured."""
+    t = ChessTest()
+    cpu = t.setup_cpu()
+    t.init_board(cpu)
+
+    check_kings_addr = None
+    for addr in range(t.start_addr + 10, t.start_addr + 100):
+        if cpu.rb(addr) == 0xCD:
+            next_op = cpu.rb(addr + 3)
+            if next_op == 0x20:
+                check_kings_addr = cpu.rb(addr + 1) | (cpu.rb(addr + 2) << 8)
+                break
+
+    assert check_kings_addr
+
+    # Remove white king
+    wk_pos = t.sq('e', 1)
+    assert t.get_piece(cpu, wk_pos) == W_KING
+    t.set_piece(cpu, wk_pos, EMPTY)
+
+    cpu.sp = 0x7FFF
+    t.call_routine(cpu, check_kings_addr)
+
+    z_flag = cpu.get_flag(cpu.FLAG_Z)
+    assert not z_flag, "Z should be clear when white king is missing (game over)"
+
+    print("  PASS: game over detection (black wins)")
+
+
+def test_slider_direction_masks():
+    """Test bishop uses diagonals only, rook uses orthogonals only."""
+    t = ChessTest()
+
+    # Bishop should NOT move orthogonally
+    cpu = t.setup_cpu()
+    t.clear_board(cpu)
+    d4 = t.sq('d', 4)
+    t.set_piece(cpu, d4, B_BISHOP)
+    # Place white queen directly north on d8 - bishop can't reach it
+    d8 = t.sq('d', 8)
+    t.set_piece(cpu, d8, W_QUEEN)
+
+    cpu.wb(SIDE, 8)
+    think_addr = t.find_think(cpu)
+    t.call_routine(cpu, think_addr)
+
+    best_to = cpu.rb(BEST_TO)
+    assert best_to != d8, "Bishop should not reach d8 (orthogonal from d4)!"
+
+    # Rook should NOT move diagonally
+    cpu2 = t.setup_cpu()
+    t.clear_board(cpu2)
+    d4 = t.sq('d', 4)
+    t.set_piece(cpu2, d4, B_ROOK)
+    # Place white queen on diagonal g7 - rook can't reach it
+    g7 = t.sq('g', 7)
+    t.set_piece(cpu2, g7, W_QUEEN)
+
+    cpu2.wb(SIDE, 8)
+    t.call_routine(cpu2, think_addr)
+
+    best_to = cpu2.rb(BEST_TO)
+    assert best_to != g7, "Rook should not reach g7 (diagonal from d4)!"
+
+    print("  PASS: slider direction masks (bishop diagonal, rook orthogonal)")
+
+
 def run_all_tests():
     """Run all tests and report results."""
     print("\n=== ZX81 Chess Test Suite ===\n")
@@ -720,6 +1297,26 @@ def run_all_tests():
         ("Move Execution", test_move_execution),
         ("Pawn Promotion", test_pawn_promotion),
         ("Slider Blocked", test_slider_blocked),
+        # --- New tests for previously untested paths ---
+        ("Get Square (keyboard input)", test_get_square),
+        ("Get Move (valid input)", test_get_move_valid),
+        ("Get Move (rejects empty source)", test_get_move_rejects_empty),
+        ("Get Move (rejects black source)", test_get_move_rejects_black_source),
+        ("Get Move (rejects own piece dest)", test_get_move_rejects_own_dest),
+        ("Get Piece Char (display chars)", test_get_piece_char),
+        ("Display Rendering", test_cls_and_draw),
+        ("Full Game Turn", test_full_game_turn),
+        ("Knight H-File Edge", test_knight_h_file_edge),
+        ("Knight H8 Corner", test_knight_h8_corner),
+        ("Pawn A-File No Wrap", test_pawn_a_file_no_wrap),
+        ("Pawn H-File No Wrap", test_pawn_h_file_no_wrap),
+        ("Bishop Edge No Wrap", test_bishop_edge_no_wrap),
+        ("Rook Edge Wrapping", test_rook_edge_no_wrap),
+        ("Pawn No Double Wrong Rank", test_pawn_no_double_from_wrong_rank),
+        ("Promotion With Capture", test_promotion_with_capture),
+        ("Game Over White Wins", test_game_over_white_wins),
+        ("Game Over Black Wins", test_game_over_black_wins),
+        ("Slider Direction Masks", test_slider_direction_masks),
     ]
 
     passed = 0
