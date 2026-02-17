@@ -1,332 +1,62 @@
-================================================================
-  ZX81 1K CHESS  -  "KING OF THE CASTLE"
-  Complete Hex Dump for Manual Entry
-================================================================
-
-  This file contains every byte of the machine code that
-  lives inside the REM statement on BASIC line 1.
-
-  To enter manually on a ZX81:
-    1. Create line 1:  1 REM (followed by 672 spaces)
-    2. Create line 2:  2 RAND USR 16514
-    3. POKE each byte using the commands below
-    4. SAVE "CHESS" to tape
-    5. Type RAND USR 16514 to play!
-
-  Or use this hex dump to create a .P file with a hex editor.
-
-================================================================
- SECTION 1: Board Data (64 bytes)
- Addresses $4082-$40C1 (16514-16577)
- (All zeroes - board is initialised by code at runtime)
-================================================================
-
- ADDR  HEX                                       DECIMAL
- ----  ---                                       -------
- 4082: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
- 4092: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
- 40A2: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
- 40B2: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
-
- (You can skip these - they're all zero and the REM statement
-  will already contain spaces ($00) if you typed spaces.)
-
-================================================================
- SECTION 2: Working Variables (7 bytes)
- Addresses $40C2-$40C8 (16578-16584)
-================================================================
-
- 40C2: 00 00 00 00 00 00 00
-
- POKE 16578,0    cursor
- POKE 16579,0    move_from
- POKE 16580,0    move_to
- POKE 16581,0    best_from
- POKE 16582,0    best_to
- POKE 16583,0    best_score
- POKE 16584,0    side
-
- (Also all zeroes - can skip if REM is already spaces.)
-
-================================================================
- SECTION 3: Piece Characters Table (7 bytes)
- Addresses $40C9-$40CF (16585-16591)
-================================================================
-
- 40C9: 00 35 33 27 37 36 30
-
- POKE 16585,0       empty -> space
- POKE 16586,53      pawn  -> "P"
- POKE 16587,51      knight -> "N"
- POKE 16588,39      bishop -> "B"
- POKE 16589,55      rook  -> "R"
- POKE 16590,54      queen -> "Q"
- POKE 16591,48      king  -> "K"
-
-================================================================
- SECTION 4: Piece Values Table (7 bytes)
- Addresses $40D0-$40D6 (16592-16598)
-================================================================
-
- 40D0: 00 01 03 03 05 09 32
-
- POKE 16592,0       empty  = 0 points
- POKE 16593,1       pawn   = 1 point
- POKE 16594,3       knight = 3 points
- POKE 16595,3       bishop = 3 points
- POKE 16596,5       rook   = 5 points
- POKE 16597,9       queen  = 9 points
- POKE 16598,50      king   = 50 points
-
-================================================================
- SECTION 5: King/Queen Direction Offsets (8 bytes)
- Addresses $40D7-$40DE (16599-16606)
- (Signed values stored as unsigned bytes)
-================================================================
-
- 40D7: F7 F8 F9 FF 01 07 08 09
-
- POKE 16599,247     -9  (SW diagonal)
- POKE 16600,248     -8  (South)
- POKE 16601,249     -7  (SE diagonal)
- POKE 16602,255     -1  (West)
- POKE 16603,1       +1  (East)
- POKE 16604,7       +7  (NW diagonal)
- POKE 16605,8       +8  (North)
- POKE 16606,9       +9  (NE diagonal)
-
-================================================================
- SECTION 6: Knight Direction Offsets (8 bytes)
- Addresses $40DF-$40E6 (16607-16614)
-================================================================
-
- 40DF: EF F1 F6 FA 06 0A 0F 11
-
- POKE 16607,239     -17 (2 South, 1 West)
- POKE 16608,241     -15 (2 South, 1 East)
- POKE 16609,246     -10 (1 South, 2 West)
- POKE 16610,250     -6  (1 South, 2 East)
- POKE 16611,6       +6  (1 North, 2 West)
- POKE 16612,10      +10 (1 North, 2 East)
- POKE 16613,15      +15 (2 North, 1 West)
- POKE 16614,17      +17 (2 North, 1 East)
-
-================================================================
- SECTION 7: Initial Back Rank (8 bytes)
- Addresses $40E7-$40EE (16615-16622)
-================================================================
-
- 40E7: 04 02 03 05 06 03 02 04
-
- POKE 16615,4       Rook
- POKE 16616,2       Knight
- POKE 16617,3       Bishop
- POKE 16618,5       Queen
- POKE 16619,6       King
- POKE 16620,3       Bishop
- POKE 16621,2       Knight
- POKE 16622,4       Rook
-
-================================================================
- SECTION 8: Machine Code (567 bytes)
- Addresses $40EF-$4325 (16623-17189)
-================================================================
-
- The machine code follows. Each line shows:
-   Address: hex bytes       ; Assembly mnemonic / comment
-
- --- Entry Point & Main Loop ---
-
- 40EF: CD 39 41             ; CALL init_board    ($4139)
- 40F2: CD 63 41             ; CALL cls_and_draw  ($4163)
- 40F5: AF                   ; XOR A              (side = White)
- 40F6: 32 C8 40             ; LD ($40C8), A
- 40F9: CD 05 42             ; CALL get_move      ($4205)
- 40FC: CD E0 41             ; CALL make_move     ($41E0)
- 40FF: CD 63 41             ; CALL cls_and_draw
- 4102: CD 10 42             ; CALL check_kings   ($4210)
- 4105: 28 0F                ; JR Z, white_wins   ($4116)
- 4107: 3E 08                ; LD A, 8            (side = Black)
- 4109: 32 C8 40             ; LD ($40C8), A
- 410C: CD 30 42             ; CALL think         ($4230)
- 410F: CD F0 41             ; CALL ai_make_move  ($41F0)
- 4112: CD 63 41             ; CALL cls_and_draw
- 4115: CD 10 42             ; CALL check_kings
- 4118: 28 08                ; JR Z, black_wins   ($4122)
- 411A: 18 D9                ; JR game_loop       ($40F5)
-
- --- Game Over ---
-
- 411C: 21 2D 41             ; LD HL, msg_win     ($412D)
- 411F: CD 00 43             ; CALL print_msg     ($4300)
- 4122: 76                   ; HALT
- 4123: 18 FD                ; JR $               (infinite loop)
- 4125: 21 34 41             ; LD HL, msg_lose    ($4134)
- 4128: CD 00 43             ; CALL print_msg
- 412B: 76                   ; HALT
- 412C: 18 FD                ; JR $
-
- --- Message Data ---
-
- 412D: 3E 34 3A 00          ; "YOU " (ZX81 chars)
- 4131: 3C 2E 33 FF          ; "WIN" + terminator
- 4135: 2E 00                ; "I "
- 4137: 3C 2E 33 FF          ; "WIN" + terminator
-
- --- Board Initialisation ---
-
- 4139: 21 82 40             ; LD HL, board       ($4082)
- 413C: 06 40                ; LD B, 64
- 413E: AF                   ; XOR A
- 413F: 77                   ; LD (HL), A
- 4140: 23                   ; INC HL
- 4141: 10 FC                ; DJNZ $413F
- 4143: 21 82 40             ; LD HL, board
- 4146: 11 E7 40             ; LD DE, init_rank   ($40E7)
- 4149: 06 08                ; LD B, 8
- 414B: 1A                   ; LD A, (DE)
- 414C: 77                   ; LD (HL), A
- 414D: 23                   ; INC HL
- 414E: 13                   ; INC DE
- 414F: 10 FA                ; DJNZ $414B
- 4151: 06 08                ; LD B, 8
- 4153: 3E 01                ; LD A, 1            (White Pawn)
- 4155: 77                   ; LD (HL), A
- 4156: 23                   ; INC HL
- 4157: 10 FC                ; DJNZ $4155
- 4159: 21 B2 40             ; LD HL, board+48    ($40B2)
- 415C: 06 08                ; LD B, 8
- 415E: 3E 09                ; LD A, 9            (Black Pawn)
- 4160: 77                   ; LD (HL), A
- 4161: 23                   ; INC HL
- 4162: 10 FC                ; DJNZ $4160
- 4164: 11 E7 40             ; LD DE, init_rank
- 4167: 06 08                ; LD B, 8
- 4169: 1A                   ; LD A, (DE)
- 416A: F6 08                ; OR 8               (set Black bit)
- 416C: 77                   ; LD (HL), A
- 416D: 23                   ; INC HL
- 416E: 13                   ; INC DE
- 416F: 10 F8                ; DJNZ $4169
- 4171: C9                   ; RET
-
- --- (Display, Input, AI, etc. continue...) ---
- --- (See chess.asm for full disassembly)   ---
-
-================================================================
- POKE COMMANDS FOR SECTIONS 3-8
- (Copy these to enter on the ZX81 keyboard)
-================================================================
-
-POKE 16585,0
-POKE 16586,53
-POKE 16587,51
-POKE 16588,39
-POKE 16589,55
-POKE 16590,54
-POKE 16591,48
-POKE 16592,0
-POKE 16593,1
-POKE 16594,3
-POKE 16595,3
-POKE 16596,5
-POKE 16597,9
-POKE 16598,50
-POKE 16599,247
-POKE 16600,248
-POKE 16601,249
-POKE 16602,255
-POKE 16603,1
-POKE 16604,7
-POKE 16605,8
-POKE 16606,9
-POKE 16607,239
-POKE 16608,241
-POKE 16609,246
-POKE 16610,250
-POKE 16611,6
-POKE 16612,10
-POKE 16613,15
-POKE 16614,17
-POKE 16615,4
-POKE 16616,2
-POKE 16617,3
-POKE 16618,5
-POKE 16619,6
-POKE 16620,3
-POKE 16621,2
-POKE 16622,4
-POKE 16623,205
-POKE 16624,57
-POKE 16625,65
-POKE 16626,205
-POKE 16627,99
-POKE 16628,65
-POKE 16629,175
-POKE 16630,50
-POKE 16631,200
-POKE 16632,64
-POKE 16633,205
-POKE 16634,5
-POKE 16635,66
-POKE 16636,205
-POKE 16637,224
-POKE 16638,65
-POKE 16639,205
-POKE 16640,99
-POKE 16641,65
-POKE 16642,205
-POKE 16643,16
-POKE 16644,66
-POKE 16645,40
-POKE 16646,15
-POKE 16647,62
-POKE 16648,8
-POKE 16649,50
-POKE 16650,200
-POKE 16651,64
-POKE 16652,205
-POKE 16653,48
-POKE 16654,66
-POKE 16655,205
-POKE 16656,240
-POKE 16657,65
-POKE 16658,205
-POKE 16659,99
-POKE 16660,65
-POKE 16661,205
-POKE 16662,16
-POKE 16663,66
-POKE 16664,40
-POKE 16665,8
-POKE 16666,24
-POKE 16667,217
-
-REM ... (remaining POKE commands for the rest of the
-REM      machine code continue for another ~500 lines.
-REM      See chess.asm for the complete byte listing.)
-
-================================================================
- CHECKSUM
-================================================================
-
- To verify your entry, the sum of all 672 bytes
- (modulo 256) should equal: $A7 (167 decimal)
-
- To check on the ZX81:
-   LET S=0
-   FOR I=16514 TO 17185
-   LET S=S+PEEK I
-   NEXT I
-   PRINT S-INT(S/256)*256
-
- If it prints 167, you're golden.
- If not, there's a typo somewhere. Good luck finding it!
- (This is why we saved to tape after every 100 POKEs.)
-
-================================================================
-
-  "Measure twice, POKE once."
-      - Ancient ZX81 proverb
-
-================================================================
+4082  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00   |................|
+4092  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00   |................|
+40a2  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00   |................|
+40b2  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00   |................|
+40c2  00 00 00 00 00 00 00 00 35 33 27 37 36 30 00 01   |........53'760..|
+40d2  03 03 05 09 32 f7 f8 f9 ff 01 07 08 09 ef f1 f6   |....2...........|
+40e2  fa 06 0a 0f 11 04 02 03 05 06 03 02 04 cd 3d 41   |..............=A|
+40f2  cd 76 41 af 32 c8 40 cd ec 41 cd 4c 42 cd 76 41   |.vA.2.@..A.LB.vA|
+4102  cd 85 42 20 16 3e 08 32 c8 40 cd 9b 42 cd 56 42   |..B .>.2.@..B.VB|
+4112  cd 76 41 cd 85 42 20 0c c3 f5 40 21 2f 41 cd 4e   |.vA..B ...@!/A.N|
+4122  44 76 18 fe 21 37 41 cd 4e 44 76 18 fe 3e 34 3a   |Dv..!7A.NDv..>4:|
+4132  00 3c 2e 33 ff 2e 00 3c 2e 33 ff 21 82 40 06 40   |.<.3...<.3.!.@.@|
+4142  af 77 23 10 fc 21 82 40 11 e7 40 06 08 1a 77 23   |.w#..!.@..@...w#|
+4152  13 10 fa 06 08 3e 01 77 23 10 fc 21 b2 40 06 08   |.....>.w#..!.@..|
+4162  3e 09 77 23 10 fc 11 e7 40 06 08 1a f6 08 77 23   |>.w#....@.....w#|
+4172  13 10 f8 c9 cd 2a 0a 2a 0c 40 23 3e 00 d7 d7 06   |.....*.*.@#>....|
+4182  08 3e 26 f5 d7 3e 00 d7 f1 3c 10 f7 3e 76 d7 0e   |.>&..>...<..>v..|
+4192  08 dd 21 ba 40 3e 1c 81 d7 3e 00 d7 06 08 dd e5   |..!.@>...>......|
+41a2  d1 1a c5 d5 cd d4 41 d7 3e 00 d7 d1 c1 13 10 f1   |......A.>.......|
+41b2  3e 76 d7 dd e5 e1 11 f8 ff 19 e5 dd e1 0d 20 d5   |>v............ .|
+41c2  3e 00 d7 d7 06 08 3e 26 f5 d7 3e 00 d7 f1 3c 10   |>.....>&..>...<.|
+41d2  f7 c9 a7 20 03 3e 1b c9 f5 e6 07 5f 16 00 21 c9   |... .>....._..!.|
+41e2  40 19 7e d1 cb 5a c8 f6 80 c9 3e 76 d7 3e 0f d7   |@.~..Z....>v.>..|
+41f2  cd 1f 42 32 c3 40 5f 16 00 21 82 40 19 7e a7 28   |..B2.@_..!.@.~.(|
+4202  ef cb 5f 20 eb 3e 16 d7 cd 1f 42 32 c4 40 5f 16   |.._ .>....B2.@_.|
+4212  00 21 82 40 19 7e a7 c8 cb 5f c0 18 d3 cd 3c 42   |.!.@.~..._....<B|
+4222  d6 26 e6 07 f5 c6 26 d7 cd 3c 42 d6 1d e6 07 f5   |.&....&..<B.....|
+4232  c6 1d d7 f1 07 07 07 d1 82 c9 76 3a 25 40 fe ff   |..........v:%@..|
+4242  28 f8 f5 3e ff 32 25 40 f1 c9 3a c3 40 4f 3a c4   |(..>.2%@..:.@O:.|
+4252  40 47 18 08 3a c5 40 4f 3a c6 40 47 59 16 00 21   |@G..:.@O:.@GY..!|
+4262  82 40 19 7e 36 00 58 16 00 21 82 40 19 77 e6 07   |.@.~6.X..!.@.w..|
+4272  fe 01 c0 78 fe 38 30 07 fe 08 d0 3e 0d 77 c9 3e   |...x.80....>.w.>|
+4282  05 77 c9 21 82 40 06 40 0e 00 7e e6 07 fe 06 20   |.w.!.@.@..~.... |
+4292  01 0c 23 10 f5 79 fe 02 c9 af 32 c7 40 3e ff 32   |..#..y....2.@>.2|
+42a2  c5 40 af f5 5f 16 00 21 82 40 19 7e a7 28 1d cb   |.@.._..!.@.~.(..|
+42b2  5f 28 19 e6 07 57 f1 f5 5f 7a fe 01 ca d5 42 fe   |_(...W.._z....B.|
+42c2  02 ca 4d 43 fe 06 ca 79 43 c3 a5 43 f1 3c fe 40   |..MC...yC..C.<.@|
+42d2  20 d1 c9 7b d6 08 38 f4 4f cd 04 44 a7 20 1b 3e   | ..{..8.O..D. .>|
+42e2  01 cd 38 44 7b e6 38 fe 30 20 0f 7b d6 10 4f cd   |..8D{.8.0 .{..O.|
+42f2  04 44 a7 20 05 3e 01 cd 38 44 7b d6 07 38 06 4f   |.D. .>..8D{..8.O|
+4302  cd 12 43 28 00 7b d6 09 38 04 4f cd 12 43 18 bc   |..C(.{..8.O..C..|
+4312  7b e6 07 47 79 e6 07 90 28 30 30 02 ed 44 fe 02   |{..Gy...(00..D..|
+4322  30 28 cd 04 44 a7 28 22 cb 5f 20 1e e6 07 e5 21   |0(..D.("._ ....!|
+4332  d0 40 16 00 19 e1 cd 04 44 e6 07 d5 e5 5f 16 00   |.@......D...._..|
+4342  21 d0 40 19 7e e1 d1 cd 38 44 c9 21 df 40 06 08   |!.@.~...8D.!.@..|
+4352  c5 e5 7e 4f 7b 81 fe 40 30 15 4f cd 11 44 fe 03   |..~O{..@0.O..D..|
+4362  30 0d cd 04 44 cb 5f 20 06 cd 20 44 cd 38 44 e1   |0...D._ .. D.8D.|
+4372  c1 23 10 dc c3 ce 42 21 d7 40 06 08 c5 e5 7e 4f   |.#....B!.@....~O|
+4382  7b 81 fe 40 30 15 4f cd 11 44 fe 02 30 0d cd 04   |{..@0.O..D..0...|
+4392  44 cb 5f 20 06 cd 20 44 cd 38 44 e1 c1 23 10 dc   |D._ .. D.8D..#..|
+43a2  c3 ce 42 7a fe 03 3e a5 28 08 fe 04 3e 5a 28 02   |..Bz..>.(...>Z(.|
+43b2  3e ff 21 d7 40 06 08 57 c5 e5 d5 7a e6 01 28 37   |>.!.@..W...z..(7|
+43c2  7e 57 7b 47 82 fe 40 30 2e 4f f5 78 e6 07 47 79   |~W{G..@0.O.x..Gy|
+43d2  e6 07 90 30 02 ed 44 fe 02 30 1b cd 04 44 a7 28   |...0..D..0...D.(|
+43e2  0d cb 5f 20 11 cd 20 44 cd 38 44 f1 18 09 3e 01   |.._ .. D.8D...>.|
+43f2  cd 38 44 f1 18 cd f1 d1 cb 3a e1 c1 23 10 b9 c3   |.8D......:..#...|
+4402  ce 42 e5 d5 59 16 00 21 82 40 19 7e d1 e1 c9 d5   |.B..Y..!.@.~....|
+4412  7b e6 07 57 79 e6 07 92 30 02 ed 44 d1 c9 cd 04   |{..Wy...0..D....|
+4422  44 a7 28 0f e6 07 e5 d5 5f 16 00 21 d0 40 19 7e   |D.(....._..!.@.~|
+4432  d1 e1 c9 3e 01 c9 d5 57 3a c7 40 ba 30 0c 7a 32   |...>...W:.@.0.z2|
+4442  c7 40 7b 32 c5 40 79 32 c6 40 d1 c9 7e fe ff c8   |.@{2.@y2.@..~...|
+4452  d7 23 18 f8                                       |.#..|
