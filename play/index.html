@@ -359,6 +359,8 @@
                 const code = zx81.keyMap[ch];
                 if (code !== undefined) zx81.keyBuffer.push(code);
             }
+            moveChars = [];
+            waitingForInput = false;
         }
 
         // --- Emulator ---
@@ -391,9 +393,14 @@
             if (!hitHalt && running) {
                 if (thinkingStartFrame === 0) thinkingStartFrame = frameCount;
                 waitingForInput = false;
-            } else {
+            } else if (hitHalt) {
                 if (thinkingStartFrame > 0) {
+                    // Computer was thinking (had non-HALT frames), now done
                     thinkingStartFrame = 0;
+                    waitingForInput = true;
+                    moveChars = [];
+                } else if (!waitingForInput && zx81.keyBuffer.length === 0) {
+                    // Processing completed quickly without any non-HALT frames
                     waitingForInput = true;
                     moveChars = [];
                 }

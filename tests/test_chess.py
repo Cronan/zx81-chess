@@ -967,6 +967,38 @@ def test_full_game_turn():
     print("  PASS: full game turn (player + computer)")
 
 
+def test_multi_turn_game():
+    """Test two consecutive player moves with computer responses.
+
+    Catches bugs where the game loop fails to accept keyboard input
+    after the first turn (e.g., state not resetting between turns).
+    """
+    t = ChessTest()
+    # Queue two complete moves: E2E4 then D2D4
+    cpu = t.setup_cpu_with_keys([
+        ZX_E, ZX_2, ZX_E, ZX_4,  # First move: e2-e4
+        ZX_D, ZX_2, ZX_D, ZX_4,  # Second move: d2-d4
+    ])
+
+    # Run from start - will process both turns then halt waiting for 3rd input
+    cpu.push(0x0000)
+    result = cpu.run(t.start_addr, stop_on_halt_no_keys=True)
+
+    # All 8 keys should have been consumed (both moves processed)
+    assert len(cpu.key_queue) == 0, \
+        f"All keys should be consumed, {len(cpu.key_queue)} remaining (second move not accepted?)"
+
+    # First move: e2 pawn moved to e4
+    assert t.get_piece(cpu, t.sq('e', 2)) == EMPTY, "e2 should be empty after first move"
+
+    # Second move: d2 pawn must have moved (this is the critical assertion -
+    # if keyboard input breaks after the first turn, d2 still has a pawn)
+    assert t.get_piece(cpu, t.sq('d', 2)) == EMPTY, \
+        "d2 should be empty after second move - keyboard input may be stuck after first turn"
+
+    print("  PASS: multi-turn game (two consecutive player moves accepted)")
+
+
 def test_knight_h_file_edge():
     """Test knight on h-file doesn't wrap to a-file."""
     t = ChessTest()
@@ -1306,6 +1338,7 @@ def run_all_tests():
         ("Get Piece Char (display chars)", test_get_piece_char),
         ("Display Rendering", test_cls_and_draw),
         ("Full Game Turn", test_full_game_turn),
+        ("Multi-Turn Game", test_multi_turn_game),
         ("Knight H-File Edge", test_knight_h_file_edge),
         ("Knight H8 Corner", test_knight_h8_corner),
         ("Pawn A-File No Wrap", test_pawn_a_file_no_wrap),
