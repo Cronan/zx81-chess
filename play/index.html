@@ -7,9 +7,9 @@
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         html, body {
-            background: #111;
+            background: #2a2a2a;
             color: #eee;
-            font-family: 'Courier New', monospace;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             height: 100%;
             overflow: hidden;
             touch-action: manipulation;
@@ -22,30 +22,58 @@
             justify-content: center;
             padding: 8px;
         }
+
+        /* === ZX81 Case — white wedge-shaped plastic === */
         .zx81-case {
-            background: linear-gradient(180deg, #222 0%, #181818 100%);
-            border-radius: 12px;
-            padding: 12px;
+            background: linear-gradient(175deg, #e8e4e0 0%, #d8d4d0 40%, #ccc8c4 100%);
+            border-radius: 8px 8px 4px 4px;
+            padding: 16px 14px 10px;
             width: 100%;
-            max-width: 480px;
+            max-width: 500px;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+            box-shadow:
+                0 2px 0 #b0aca8,
+                0 4px 0 #a09c98,
+                0 8px 20px rgba(0,0,0,0.4),
+                inset 0 1px 0 rgba(255,255,255,0.5);
+            position: relative;
         }
+
+        /* Sinclair branding */
         .sinclair-logo {
-            color: #c00;
-            font-weight: bold;
-            font-size: 13px;
-            text-align: right;
-            letter-spacing: 2px;
-            margin-bottom: 6px;
-            padding-right: 4px;
-        }
-        .screen-bezel {
-            background: #000;
-            border-radius: 6px;
-            padding: 8px;
+            display: flex;
+            align-items: baseline;
+            justify-content: flex-end;
             margin-bottom: 8px;
+            padding-right: 2px;
+            gap: 6px;
+        }
+        .sinclair-logo .brand {
+            color: #c00;
+            font-weight: 700;
+            font-size: 11px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        }
+        .sinclair-logo .model {
+            color: #444;
+            font-weight: 700;
+            font-size: 15px;
+            letter-spacing: 1px;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        }
+
+        /* === Screen bezel === */
+        .screen-bezel {
+            background: #111;
+            border-radius: 3px;
+            padding: 10px 12px;
+            margin-bottom: 10px;
+            box-shadow:
+                inset 0 2px 6px rgba(0,0,0,0.6),
+                0 1px 0 rgba(255,255,255,0.15);
         }
         #screen {
             display: block;
@@ -54,132 +82,205 @@
             background: #fff;
             image-rendering: pixelated;
         }
-        /* Move input display */
+
+        /* === Move input display === */
         .move-bar {
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 4px;
-            margin-bottom: 6px;
-            height: 36px;
+            gap: 3px;
+            margin-bottom: 4px;
+            height: 30px;
         }
         .move-slot {
-            width: 28px;
-            height: 32px;
-            line-height: 32px;
+            width: 24px;
+            height: 26px;
+            line-height: 26px;
             text-align: center;
-            border-radius: 3px;
-            background: rgba(255,255,255,0.06);
-            color: #666;
-            font-size: 20px;
+            border-radius: 2px;
+            background: rgba(0,0,0,0.1);
+            color: #888;
+            font-size: 16px;
             font-weight: bold;
+            font-family: 'Courier New', monospace;
         }
         .move-slot.active {
-            border: 1.5px solid #4fc3f7;
-            background: rgba(79,195,247,0.1);
-            color: #4fc3f7;
+            border: 1.5px solid #333;
+            background: rgba(0,0,0,0.18);
+            color: #111;
         }
-        .move-slot.filled { color: #fff; }
-        .move-arrow { color: #555; font-size: 14px; margin: 0 2px; }
+        .move-slot.filled { color: #000; font-weight: 900; }
+        .move-arrow { color: #555; font-size: 12px; margin: 0 2px; }
         .status {
-            color: #888;
-            font-size: 11px;
+            color: #333;
+            font-size: 10px;
+            font-weight: 600;
             text-align: center;
-            margin-bottom: 8px;
-            height: 14px;
+            margin-bottom: 6px;
+            height: 13px;
         }
-        /* ZX81-style keyboard */
+
+        /* === ZX81 Membrane Keyboard === */
         .zx81-keyboard {
             background: #1a1a1a;
-            border-radius: 0 0 8px 8px;
-            padding: 8px 4px 10px;
+            border-radius: 2px;
+            padding: 6px 3px 8px;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
         }
+
         .kb-row {
             display: flex;
             justify-content: center;
-            gap: 3px;
-            margin-bottom: 3px;
+            gap: 0;
+            margin-bottom: 0;
         }
+
+        /* Each key is a flat membrane cell with multi-line labels */
         .kb-key {
             flex: 1;
-            max-width: 42px;
-            height: 36px;
+            max-width: 48px;
+            height: 52px;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            background: #2a2a2a;
-            color: #555;
-            border: 1px solid #333;
-            border-radius: 3px;
-            font-family: 'Courier New', monospace;
-            font-size: 13px;
-            font-weight: bold;
+            background: transparent;
+            border: 0.5px solid #333;
+            border-radius: 0;
             cursor: pointer;
             user-select: none;
             -webkit-user-select: none;
-            transition: background 0.15s, color 0.15s, border-color 0.15s;
+            position: relative;
+            padding: 2px 1px;
+            transition: background 0.1s;
         }
-        .kb-key.valid {
-            background: #3a3a3a;
+
+        /* Keyword label above the main character */
+        .kb-key .kw {
+            font-size: 5.5px;
+            color: #bbb;
+            letter-spacing: 0.3px;
+            line-height: 1;
+            margin-bottom: 1px;
+            text-transform: uppercase;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            white-space: nowrap;
+        }
+
+        /* Main key character */
+        .kb-key .main {
+            font-size: 13px;
+            font-weight: 700;
             color: #fff;
-            border-color: #4fc3f7;
-            box-shadow: 0 0 6px rgba(79,195,247,0.25);
+            line-height: 1;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         }
-        .kb-key.valid:active {
-            background: #4fc3f7;
-            color: #000;
+
+        /* Shifted symbol (red, top-right area) */
+        .kb-key .sh {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            font-size: 5px;
+            color: #e55;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            line-height: 1;
         }
-        .kb-key.fn {
+
+        /* Function label below */
+        .kb-key .fn-label {
+            font-size: 5px;
+            color: #999;
+            line-height: 1;
+            margin-top: 1px;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            white-space: nowrap;
+        }
+
+        /* Wide keys */
+        .kb-key.wide {
             max-width: 64px;
-            font-size: 10px;
+        }
+        .kb-key.wide .main {
+            font-size: 8px;
             letter-spacing: 0.5px;
         }
+
+        /* Valid key highlight */
+        .kb-key.valid {
+            background: rgba(255,255,255,0.12);
+            border-color: #666;
+        }
+        .kb-key.valid .main {
+            color: #fff;
+            text-shadow: 0 0 4px rgba(255,255,255,0.4);
+        }
+        .kb-key.valid:active {
+            background: rgba(255,255,255,0.3);
+        }
+
+        /* Flash on press */
         .kb-key.flash {
-            background: #fff !important;
-            color: #000 !important;
-            border-color: #fff !important;
+            background: rgba(255,255,255,0.3) !important;
             transition: none;
         }
-        /* Reset button */
+        .kb-key.flash .main {
+            color: #fff !important;
+        }
+
+        /* === Reset / New Game === */
         .reset-bar {
             display: flex;
             justify-content: center;
-            margin-top: 6px;
+            margin-top: 8px;
         }
         .reset-btn {
             background: none;
-            border: 1px solid #333;
-            color: #666;
-            font-family: inherit;
-            font-size: 10px;
-            padding: 4px 14px;
-            border-radius: 3px;
+            border: 1px solid #888;
+            color: #444;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 9px;
+            font-weight: 600;
+            padding: 3px 12px;
+            border-radius: 2px;
             cursor: pointer;
+            letter-spacing: 0.5px;
         }
-        .reset-btn:hover { border-color: #666; color: #aaa; }
-        /* Footer */
+        .reset-btn:hover { border-color: #555; color: #222; }
+
+        /* === Footer === */
         .footer {
             margin-top: 8px;
             text-align: center;
         }
         .footer a {
-            color: #444;
+            color: #666;
             font-size: 10px;
             text-decoration: none;
         }
-        @media (max-width: 360px) {
-            .zx81-case { padding: 8px; }
-            .kb-key { height: 32px; font-size: 12px; }
-            .kb-key.fn { font-size: 9px; }
+
+        /* === Responsive === */
+        @media (max-width: 380px) {
+            .zx81-case { padding: 10px 8px 8px; }
+            .kb-key { height: 44px; }
+            .kb-key .main { font-size: 11px; }
+            .kb-key .kw { font-size: 5px; }
         }
-        @media (min-height: 700px) {
-            .kb-key { height: 40px; }
+        @media (min-width: 500px) {
+            .kb-key { height: 56px; }
+            .kb-key .main { font-size: 14px; }
+            .kb-key .kw { font-size: 6px; }
+            .kb-key .sh { font-size: 5.5px; }
+            .kb-key .fn-label { font-size: 5.5px; }
         }
     </style>
 </head>
 <body>
     <div class="zx81-case">
-        <div class="sinclair-logo">SINCLAIR ZX81</div>
+        <div class="sinclair-logo">
+            <span class="brand">sinclair</span>
+            <span class="model">ZX81</span>
+        </div>
         <div class="screen-bezel">
             <canvas id="screen"></canvas>
         </div>
@@ -191,56 +292,264 @@
             <span class="move-slot" id="s3">_</span>
         </div>
         <div class="status" id="status">Your turn</div>
+
+        <!-- ZX81 membrane keyboard with authentic multi-function labels -->
         <div class="zx81-keyboard" id="keyboard">
-            <div class="kb-row" id="row1">
-                <div class="kb-key" data-key="1">1</div>
-                <div class="kb-key" data-key="2">2</div>
-                <div class="kb-key" data-key="3">3</div>
-                <div class="kb-key" data-key="4">4</div>
-                <div class="kb-key" data-key="5">5</div>
-                <div class="kb-key" data-key="6">6</div>
-                <div class="kb-key" data-key="7">7</div>
-                <div class="kb-key" data-key="8">8</div>
-                <div class="kb-key" data-key="9">9</div>
-                <div class="kb-key" data-key="0">0</div>
+            <!-- Row 1: Numbers -->
+            <div class="kb-row">
+                <div class="kb-key" data-key="1">
+                    <span class="kw">&nbsp;</span>
+                    <span class="main">1</span>
+                    <span class="sh">EDIT</span>
+                    <span class="fn-label">DEF FN</span>
+                </div>
+                <div class="kb-key" data-key="2">
+                    <span class="kw">&nbsp;</span>
+                    <span class="main">2</span>
+                    <span class="sh">CAPS</span>
+                    <span class="fn-label">&nbsp;</span>
+                </div>
+                <div class="kb-key" data-key="3">
+                    <span class="kw">&nbsp;</span>
+                    <span class="main">3</span>
+                    <span class="sh">TRUE V</span>
+                    <span class="fn-label">&nbsp;</span>
+                </div>
+                <div class="kb-key" data-key="4">
+                    <span class="kw">&nbsp;</span>
+                    <span class="main">4</span>
+                    <span class="sh">INV V</span>
+                    <span class="fn-label">&nbsp;</span>
+                </div>
+                <div class="kb-key" data-key="5">
+                    <span class="kw">&nbsp;</span>
+                    <span class="main">5</span>
+                    <span class="sh">&larr;</span>
+                    <span class="fn-label">&nbsp;</span>
+                </div>
+                <div class="kb-key" data-key="6">
+                    <span class="kw">&nbsp;</span>
+                    <span class="main">6</span>
+                    <span class="sh">&darr;</span>
+                    <span class="fn-label">&nbsp;</span>
+                </div>
+                <div class="kb-key" data-key="7">
+                    <span class="kw">&nbsp;</span>
+                    <span class="main">7</span>
+                    <span class="sh">&uarr;</span>
+                    <span class="fn-label">&nbsp;</span>
+                </div>
+                <div class="kb-key" data-key="8">
+                    <span class="kw">&nbsp;</span>
+                    <span class="main">8</span>
+                    <span class="sh">&rarr;</span>
+                    <span class="fn-label">&nbsp;</span>
+                </div>
+                <div class="kb-key" data-key="9">
+                    <span class="kw">&nbsp;</span>
+                    <span class="main">9</span>
+                    <span class="sh">GRAPH</span>
+                    <span class="fn-label">&nbsp;</span>
+                </div>
+                <div class="kb-key" data-key="0">
+                    <span class="kw">&nbsp;</span>
+                    <span class="main">0</span>
+                    <span class="sh">DELETE</span>
+                    <span class="fn-label">&nbsp;</span>
+                </div>
             </div>
-            <div class="kb-row" id="row2">
-                <div class="kb-key" data-key="Q">Q</div>
-                <div class="kb-key" data-key="W">W</div>
-                <div class="kb-key" data-key="E">E</div>
-                <div class="kb-key" data-key="R">R</div>
-                <div class="kb-key" data-key="T">T</div>
-                <div class="kb-key" data-key="Y">Y</div>
-                <div class="kb-key" data-key="U">U</div>
-                <div class="kb-key" data-key="I">I</div>
-                <div class="kb-key" data-key="O">O</div>
-                <div class="kb-key" data-key="P">P</div>
+
+            <!-- Row 2: QWERTYUIOP -->
+            <div class="kb-row">
+                <div class="kb-key" data-key="Q">
+                    <span class="kw">PLOT</span>
+                    <span class="main">Q</span>
+                    <span class="sh">""</span>
+                    <span class="fn-label">SIN</span>
+                </div>
+                <div class="kb-key" data-key="W">
+                    <span class="kw">UNPLOT</span>
+                    <span class="main">W</span>
+                    <span class="sh">OR</span>
+                    <span class="fn-label">COS</span>
+                </div>
+                <div class="kb-key" data-key="E">
+                    <span class="kw">REM</span>
+                    <span class="main">E</span>
+                    <span class="sh">STEP</span>
+                    <span class="fn-label">TAN</span>
+                </div>
+                <div class="kb-key" data-key="R">
+                    <span class="kw">RUN</span>
+                    <span class="main">R</span>
+                    <span class="sh">&le;</span>
+                    <span class="fn-label">INT</span>
+                </div>
+                <div class="kb-key" data-key="T">
+                    <span class="kw">RAND</span>
+                    <span class="main">T</span>
+                    <span class="sh">&ne;</span>
+                    <span class="fn-label">RND</span>
+                </div>
+                <div class="kb-key" data-key="Y">
+                    <span class="kw">RETURN</span>
+                    <span class="main">Y</span>
+                    <span class="sh">AND</span>
+                    <span class="fn-label">STR$</span>
+                </div>
+                <div class="kb-key" data-key="U">
+                    <span class="kw">IF</span>
+                    <span class="main">U</span>
+                    <span class="sh">$</span>
+                    <span class="fn-label">CHR$</span>
+                </div>
+                <div class="kb-key" data-key="I">
+                    <span class="kw">INPUT</span>
+                    <span class="main">I</span>
+                    <span class="sh">(</span>
+                    <span class="fn-label">CODE</span>
+                </div>
+                <div class="kb-key" data-key="O">
+                    <span class="kw">POKE</span>
+                    <span class="main">O</span>
+                    <span class="sh">)</span>
+                    <span class="fn-label">PEEK</span>
+                </div>
+                <div class="kb-key" data-key="P">
+                    <span class="kw">PRINT</span>
+                    <span class="main">P</span>
+                    <span class="sh">"</span>
+                    <span class="fn-label">TAB</span>
+                </div>
             </div>
-            <div class="kb-row" id="row3">
-                <div class="kb-key" data-key="A">A</div>
-                <div class="kb-key" data-key="S">S</div>
-                <div class="kb-key" data-key="D">D</div>
-                <div class="kb-key" data-key="F">F</div>
-                <div class="kb-key" data-key="G">G</div>
-                <div class="kb-key" data-key="H">H</div>
-                <div class="kb-key" data-key="J">J</div>
-                <div class="kb-key" data-key="K">K</div>
-                <div class="kb-key" data-key="L">L</div>
-                <div class="kb-key fn" data-key="NEWLINE">ENTER</div>
+
+            <!-- Row 3: ASDFGHJKL + NEWLINE -->
+            <div class="kb-row">
+                <div class="kb-key" data-key="A">
+                    <span class="kw">NEW</span>
+                    <span class="main">A</span>
+                    <span class="sh">STOP</span>
+                    <span class="fn-label">ASN</span>
+                </div>
+                <div class="kb-key" data-key="S">
+                    <span class="kw">SAVE</span>
+                    <span class="main">S</span>
+                    <span class="sh">LPRINT</span>
+                    <span class="fn-label">ACS</span>
+                </div>
+                <div class="kb-key" data-key="D">
+                    <span class="kw">DIM</span>
+                    <span class="main">D</span>
+                    <span class="sh">SLOW</span>
+                    <span class="fn-label">ATN</span>
+                </div>
+                <div class="kb-key" data-key="F">
+                    <span class="kw">FOR</span>
+                    <span class="main">F</span>
+                    <span class="sh">FAST</span>
+                    <span class="fn-label">SGN</span>
+                </div>
+                <div class="kb-key" data-key="G">
+                    <span class="kw">GOTO</span>
+                    <span class="main">G</span>
+                    <span class="sh">LLIST</span>
+                    <span class="fn-label">ABS</span>
+                </div>
+                <div class="kb-key" data-key="H">
+                    <span class="kw">GOSUB</span>
+                    <span class="main">H</span>
+                    <span class="sh">**</span>
+                    <span class="fn-label">SQR</span>
+                </div>
+                <div class="kb-key" data-key="J">
+                    <span class="kw">LOAD</span>
+                    <span class="main">J</span>
+                    <span class="sh">&minus;</span>
+                    <span class="fn-label">VAL</span>
+                </div>
+                <div class="kb-key" data-key="K">
+                    <span class="kw">LIST</span>
+                    <span class="main">K</span>
+                    <span class="sh">+</span>
+                    <span class="fn-label">LEN</span>
+                </div>
+                <div class="kb-key" data-key="L">
+                    <span class="kw">LET</span>
+                    <span class="main">L</span>
+                    <span class="sh">=</span>
+                    <span class="fn-label">USR</span>
+                </div>
+                <div class="kb-key wide" data-key="NEWLINE">
+                    <span class="kw">&nbsp;</span>
+                    <span class="main">NEW LINE</span>
+                    <span class="fn-label">FUNCTION</span>
+                </div>
             </div>
-            <div class="kb-row" id="row4">
-                <div class="kb-key fn" data-key="DEL">DEL</div>
-                <div class="kb-key" data-key="Z">Z</div>
-                <div class="kb-key" data-key="X">X</div>
-                <div class="kb-key" data-key="C">C</div>
-                <div class="kb-key" data-key="V">V</div>
-                <div class="kb-key" data-key="B">B</div>
-                <div class="kb-key" data-key="N">N</div>
-                <div class="kb-key" data-key="M">M</div>
-                <div class="kb-key" data-key=".">.</div>
-                <div class="kb-key fn" data-key="SPACE">SPACE</div>
+
+            <!-- Row 4: SHIFT + ZXCVBNM. + SPACE -->
+            <div class="kb-row">
+                <div class="kb-key wide" data-key="SHIFT">
+                    <span class="kw">&nbsp;</span>
+                    <span class="main">SHIFT</span>
+                    <span class="fn-label">&nbsp;</span>
+                </div>
+                <div class="kb-key" data-key="Z">
+                    <span class="kw">COPY</span>
+                    <span class="main">Z</span>
+                    <span class="sh">:</span>
+                    <span class="fn-label">LN</span>
+                </div>
+                <div class="kb-key" data-key="X">
+                    <span class="kw">CLEAR</span>
+                    <span class="main">X</span>
+                    <span class="sh">;</span>
+                    <span class="fn-label">EXP</span>
+                </div>
+                <div class="kb-key" data-key="C">
+                    <span class="kw">CONT</span>
+                    <span class="main">C</span>
+                    <span class="sh">?</span>
+                    <span class="fn-label">AT</span>
+                </div>
+                <div class="kb-key" data-key="V">
+                    <span class="kw">CLS</span>
+                    <span class="main">V</span>
+                    <span class="sh">/</span>
+                    <span class="fn-label">NOT</span>
+                </div>
+                <div class="kb-key" data-key="B">
+                    <span class="kw">SCROLL</span>
+                    <span class="main">B</span>
+                    <span class="sh">*</span>
+                    <span class="fn-label">&pi;</span>
+                </div>
+                <div class="kb-key" data-key="N">
+                    <span class="kw">NEXT</span>
+                    <span class="main">N</span>
+                    <span class="sh">&lt;</span>
+                    <span class="fn-label">INKEY$</span>
+                </div>
+                <div class="kb-key" data-key="M">
+                    <span class="kw">PAUSE</span>
+                    <span class="main">M</span>
+                    <span class="sh">&gt;</span>
+                    <span class="fn-label">&nbsp;</span>
+                </div>
+                <div class="kb-key" data-key=".">
+                    <span class="kw">&nbsp;</span>
+                    <span class="main">.</span>
+                    <span class="sh">,</span>
+                    <span class="fn-label">&nbsp;</span>
+                </div>
+                <div class="kb-key wide" data-key="SPACE">
+                    <span class="kw">&nbsp;</span>
+                    <span class="main">SPACE</span>
+                    <span class="sh">&pound;</span>
+                    <span class="fn-label">BREAK</span>
+                </div>
             </div>
         </div>
+
         <div class="reset-bar">
             <button class="reset-btn" id="btn-reset">NEW GAME</button>
         </div>
@@ -395,12 +704,10 @@
                 waitingForInput = false;
             } else if (hitHalt) {
                 if (thinkingStartFrame > 0) {
-                    // Computer was thinking (had non-HALT frames), now done
                     thinkingStartFrame = 0;
                     waitingForInput = true;
                     moveChars = [];
                 } else if (!waitingForInput && zx81.keyBuffer.length === 0) {
-                    // Processing completed quickly without any non-HALT frames
                     waitingForInput = true;
                     moveChars = [];
                 }
