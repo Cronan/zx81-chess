@@ -304,7 +304,7 @@
         }
         body.modern .zx81-label { color: #999; }
         body.modern .modern-label { color: #fff; font-weight: 700; }
-        body.modern .toggle-track { background: #81b64c; border-color: #81b64c; }
+        body.modern .toggle-track { background: var(--accent); border-color: var(--accent); }
         body.modern .toggle-knob { background: #fff; transform: translateX(18px); }
 
         /* === Modern View === */
@@ -317,7 +317,43 @@
             max-width: 520px;
         }
         body.modern .zx81-case { display: none; }
-        body.modern { background: #312e2b; }
+        body.modern {
+            --sq-light: #eeeed2;
+            --sq-dark: #769656;
+            --sq-sel-light: #f6f669;
+            --sq-sel-dark: #baca2b;
+            --sq-move-light: #f6f685;
+            --sq-move-dark: #aaa23a;
+            --accent: #81b64c;
+            background: #312e2b;
+        }
+        body.modern[data-palette="walnut"] {
+            --sq-light: #f0d9b5;
+            --sq-dark: #b58863;
+            --sq-sel-light: #f7ec94;
+            --sq-sel-dark: #daa520;
+            --sq-move-light: #f5e6c8;
+            --sq-move-dark: #cda764;
+            --accent: #b58863;
+        }
+        body.modern[data-palette="frost"] {
+            --sq-light: #dce3e8;
+            --sq-dark: #7d96a8;
+            --sq-sel-light: #b5d8ea;
+            --sq-sel-dark: #5f93b0;
+            --sq-move-light: #c8d8e4;
+            --sq-move-dark: #8aafbf;
+            --accent: #7d96a8;
+        }
+        body.modern[data-palette="ember"] {
+            --sq-light: #f0d8c8;
+            --sq-dark: #b07050;
+            --sq-sel-light: #f5c880;
+            --sq-sel-dark: #c87838;
+            --sq-move-light: #ecd0b8;
+            --sq-move-dark: #c08858;
+            --accent: #b07050;
+        }
         body.modern .footer a { color: #777; }
 
         .modern-board-container {
@@ -362,13 +398,14 @@
             justify-content: center;
             position: relative;
             cursor: pointer;
+            transition: background-color 0.3s ease;
         }
-        .modern-board .square.light { background: #eeeed2; }
-        .modern-board .square.dark { background: #769656; }
-        .modern-board .square.selected.light { background: #f6f669; }
-        .modern-board .square.selected.dark { background: #baca2b; }
-        .modern-board .square.last-move.light { background: #f6f685; }
-        .modern-board .square.last-move.dark { background: #aaa23a; }
+        .modern-board .square.light { background: var(--sq-light); }
+        .modern-board .square.dark { background: var(--sq-dark); }
+        .modern-board .square.selected.light { background: var(--sq-sel-light); }
+        .modern-board .square.selected.dark { background: var(--sq-sel-dark); }
+        .modern-board .square.last-move.light { background: var(--sq-move-light); }
+        .modern-board .square.last-move.dark { background: var(--sq-move-dark); }
         .modern-board .square svg {
             width: 90%;
             height: 90%;
@@ -417,6 +454,40 @@
             transition: border-color 0.15s, color 0.15s;
         }
         .modern-new-game:hover { border-color: #999; color: #ddd; }
+
+        .palette-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            align-items: center;
+        }
+        .palette-dot {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            padding: 0;
+            cursor: pointer;
+            background: none;
+            transition: border-color 0.2s;
+            overflow: hidden;
+            display: block;
+        }
+        .palette-dot.active {
+            border-color: rgba(255,255,255,0.8);
+        }
+        .palette-dot:hover:not(.active) {
+            border-color: rgba(255,255,255,0.4);
+        }
+        .palette-dot:focus-visible {
+            outline: 2px solid #fff;
+            outline-offset: 2px;
+        }
+        .palette-dot svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
 
         /* === Responsive === */
         @media (max-width: 380px) {
@@ -753,6 +824,32 @@
         <div class="modern-status" id="modern-status">Your move</div>
         <div class="modern-controls">
             <button class="modern-new-game" id="btn-modern-reset">New game</button>
+        </div>
+        <div class="palette-row" id="palette-picker">
+            <button class="palette-dot active" data-palette="classic" aria-label="Classic green board" tabindex="0">
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <circle cx="10" cy="10" r="9" fill="#769656"/>
+                    <path d="M10 1A9 9 0 0 0 10 19Z" fill="#eeeed2"/>
+                </svg>
+            </button>
+            <button class="palette-dot" data-palette="walnut" aria-label="Walnut board" tabindex="0">
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <circle cx="10" cy="10" r="9" fill="#b58863"/>
+                    <path d="M10 1A9 9 0 0 0 10 19Z" fill="#f0d9b5"/>
+                </svg>
+            </button>
+            <button class="palette-dot" data-palette="frost" aria-label="Frost board" tabindex="0">
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <circle cx="10" cy="10" r="9" fill="#7d96a8"/>
+                    <path d="M10 1A9 9 0 0 0 10 19Z" fill="#dce3e8"/>
+                </svg>
+            </button>
+            <button class="palette-dot" data-palette="ember" aria-label="Ember board" tabindex="0">
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <circle cx="10" cy="10" r="9" fill="#b07050"/>
+                    <path d="M10 1A9 9 0 0 0 10 19Z" fill="#f0d8c8"/>
+                </svg>
+            </button>
         </div>
     </div>
 
@@ -1134,6 +1231,33 @@
                 setMode(!modernMode);
             }
         });
+
+        // --- Palette picker ---
+        let currentPalette = localStorage.getItem('chess-palette') || 'classic';
+
+        function setPalette(name) {
+            currentPalette = name;
+            if (name === 'classic') {
+                delete document.body.dataset.palette;
+            } else {
+                document.body.dataset.palette = name;
+            }
+            document.querySelectorAll('.palette-dot').forEach(el => {
+                el.classList.toggle('active', el.dataset.palette === name);
+            });
+            localStorage.setItem('chess-palette', name);
+        }
+
+        document.getElementById('palette-picker').addEventListener('click', (e) => {
+            const dot = e.target.closest('.palette-dot');
+            if (!dot) return;
+            setPalette(dot.dataset.palette);
+        });
+
+        // Apply saved palette on load
+        if (currentPalette !== 'classic') {
+            setPalette(currentPalette);
+        }
 
         // --- Modern board click input ---
         document.getElementById('modern-board').addEventListener('pointerdown', (e) => {
