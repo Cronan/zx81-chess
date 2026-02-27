@@ -238,7 +238,7 @@ class Z80 {
         if (op === 0xDA) { const addr = this.fetchWord(); if (this.getFlag(this.FLAG_C)) this.pc = addr; return; }
 
         // JR
-        if (op === 0x18) { this.pc = (this.pc + this.signedByte(this.fetch())) & 0xFFFF; return; }
+        if (op === 0x18) { const e = this.signedByte(this.fetch()); this.pc = (this.pc + e) & 0xFFFF; return; }
         if (op === 0x20) { const e = this.signedByte(this.fetch()); if (!this.getFlag(this.FLAG_Z)) this.pc = (this.pc + e) & 0xFFFF; return; }
         if (op === 0x28) { const e = this.signedByte(this.fetch()); if (this.getFlag(this.FLAG_Z)) this.pc = (this.pc + e) & 0xFFFF; return; }
         if (op === 0x30) { const e = this.signedByte(this.fetch()); if (!this.getFlag(this.FLAG_C)) this.pc = (this.pc + e) & 0xFFFF; return; }
