@@ -2,7 +2,7 @@
 ;
 ;   ZX81 1K CHESS  -  "KING OF THE CASTLE"
 ;
-;   A complete chess game in ~672 bytes of Z80 machine code
+;   A complete chess game in under 1K of Z80 machine code
 ;   Runs in the standard 1K RAM of an unexpanded ZX81
 ;
 ;   Z80A assembly, originally hand-assembled from hex
@@ -23,14 +23,13 @@
 ;   $407D-$407F  BASIC Line 1 header       (5 bytes: line num + length + REM)
 ;   $4082        Start of REM content      (= start of machine code)
 ;   $4082-$40C1  Board data                (64 bytes, inside REM)
-;   $40C2-$4328  Machine code              (~614 bytes)
-;   $4329        NEWLINE (end of REM)      (1 byte)
-;   $432A-$433B  BASIC Line 2             (RAND USR 16514)
-;   $433C-$4354  Display file             (collapsed, ~25 bytes)
-;   $4355-$43FF  Stack space              (~170 bytes)
+;   $40C2-$4455  Machine code + data       (~916 bytes)
+;   $4456        NEWLINE (end of REM)      (1 byte)
+;   $4457-$4468  BASIC Line 2             (RAND USR 16514)
+;   $4469-$4481  Display file             (collapsed, ~25 bytes)
+;   $4482+       Stack space
 ;
-;   Total machine code + data: 672 bytes
-;   Total RAM used: 1024 bytes (every last byte!)
+;   Total binary (board + code + data): 984 bytes
 ;
 ; ============================================================================
 ;
@@ -229,18 +228,16 @@ game_loop:
             jp      game_loop       ; Next turn!
 
 white_wins:
-            ; Display "YOU WIN" and halt
             ld      hl, msg_win
+            jr      show_result
+
+black_wins:
+            ld      hl, msg_lose
+
+show_result:
             call    print_msg
             halt
             jr      $               ; Infinite loop (press BREAK to exit)
-
-black_wins:
-            ; Display "I WIN" and halt
-            ld      hl, msg_lose
-            call    print_msg
-            halt
-            jr      $               ; Infinite loop
 
 ; Short messages (ZX81 character codes, terminated by $FF)
 msg_win:    DEFB    $3E, $34, $3A, $00  ; "YOU " (Y=3E, O=34, U=3A, space)
@@ -804,15 +801,7 @@ cpc_col_pos:
             bit     3, a            ; Is it Black?
             jr      nz, cpc_bad     ; Own piece - can't capture
 
-            ; Valid capture! Score = piece value
-            and     $07             ; Get piece type
-            push    hl
-            ld      hl, piece_vals
-            ld      d, 0
-            add     hl, de          ; Wait, E is source square...
-            pop     hl
-
-            ; Recalculate: get target piece value
+            ; Valid capture! Score = captured piece value
             call    get_board_sq
             and     $07
             push    de
@@ -1065,14 +1054,36 @@ sm_empty:   ld      a, 1            ; Non-capture = score 1
 
 ; --- Try move: record if it's the best found so far ---
 ; A = score, E = source square, C = target square
+;
+; Centre bonus: +1 for moves targeting columns d or e (files 3,4).
+; This encourages central development and better opening play.
+;
+; Random tie-breaking: when a move ties with the current best,
+; use the FRAMES counter as a coin flip. This eliminates the
+; a-h scan bias that made the engine always play queenside.
 try_move:
             push    de
             ld      d, a            ; D = this move's score
+
+            ; Centre column bonus: +1 for columns d,e
+            ld      a, c            ; Target square
+            and     $07             ; Column 0-7
+            sub     3               ; Columns d,e become 0,1
+            cp      2
+            jr      nc, tm_no_bonus
+            inc     d               ; +1 for centre column
+tm_no_bonus:
             ld      a, (best_score)
             cp      d               ; Compare with best
-            jr      nc, tm_skip     ; Best >= this move's score, skip
+            jr      c, tm_new       ; best < this: new best
+            jr      nz, tm_skip     ; best > this: skip
 
-            ; New best move!
+            ; Tied: coin flip using FRAMES counter
+            ld      a, (FRAMES)     ; Pseudo-random from TV timing
+            rra                     ; Bit 0 into carry
+            jr      nc, tm_skip     ; 50% keep old
+
+tm_new:     ; New best move!
             ld      a, d
             ld      (best_score), a
             ld      a, e
@@ -1097,10 +1108,9 @@ print_msg:
 ;                    END OF MACHINE CODE
 ; ============================================================================
 ;
-; Total size: approximately 672 bytes
-; (64 bytes board + 7 bytes variables + 7 bytes piece chars +
-;  7 bytes piece values + 8 bytes king dirs + 8 bytes knight dirs +
-;  8 bytes init data + ~563 bytes of code)
+; Total binary size: 984 bytes
+; (64 bytes board + 7 bytes variables + 38 bytes lookup tables +
+;  ~875 bytes of code and message data)
 ;
 ; ============================================================================
 ;
@@ -1113,8 +1123,6 @@ print_msg:
 ;   - No move legality beyond basic validation
 ;     (player can make illegal moves - honour system!)
 ;   - Computer AI is 1-ply only (doesn't think ahead)
-;   - No opening book (plays by instinct from move 1)
-;   - Slight queenside bias (scans a-file pieces first)
 ;   - No draw by repetition or 50-move rule
 ;   - Pawn promotion is always to Queen
 ;
@@ -1124,6 +1132,8 @@ print_msg:
 ;   - Direction mask trick for B/R/Q (one loop, 3 piece types)
 ;   - Signed arithmetic for move offsets using unsigned ADDs
 ;   - Pawn promotion in just 12 bytes
+;   - Centre column bonus in try_move (prefers d/e files, 8 bytes)
+;   - Random tie-breaking via FRAMES counter (no more a-file bias)
 ;   - The whole thing fits in 1K!
 ;
 ; ============================================================================

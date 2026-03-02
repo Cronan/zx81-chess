@@ -317,7 +317,7 @@ def test_rook_orthogonal():
 
     # Rook should capture queen on d1 (same file, highest value)
     assert best_to == d1, f"Rook should capture queen on d1 ({d1}), went to {best_to}"
-    assert best_score == 9, f"Score should be 9 (queen), got {best_score}"
+    assert best_score == 10, f"Score should be 10 (queen=9 + centre bonus=1), got {best_score}"
 
     print("  PASS: rook orthogonal movement")
 
@@ -525,7 +525,7 @@ def test_capture_priority():
 
     # Should capture rook (higher value)
     assert best_to == e5, f"Should capture rook on e5 (value 5), captured square {best_to}"
-    assert best_score == 5, f"Score should be 5, got {best_score}"
+    assert best_score == 6, f"Score should be 6 (rook=5 + centre bonus=1), got {best_score}"
 
     print("  PASS: capture priority (prefers high value)")
 

@@ -487,6 +487,13 @@ class Z80:
                 self.a = ((self.a >> 1) | (carry << 7)) & 0xFF
                 self.f = (self.f & ~(self.FLAG_C | self.FLAG_N | self.FLAG_H)) | (carry * self.FLAG_C)
 
+            # --- RRA ---
+            elif op == 0x1F:
+                old_carry = 1 if (self.f & self.FLAG_C) else 0
+                new_carry = self.a & 1
+                self.a = ((self.a >> 1) | (old_carry << 7)) & 0xFF
+                self.f = (self.f & ~(self.FLAG_C | self.FLAG_N | self.FLAG_H)) | (new_carry * self.FLAG_C)
+
             # --- JP nn ---
             elif op == 0xC3: self.pc = self.fetch_word()
             elif op == 0xCA:  # JP Z
