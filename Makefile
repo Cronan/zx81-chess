@@ -36,6 +36,9 @@ test: $(BIN)
 	@echo ""
 	@echo "=== Comprehensive Test Suite ==="
 	$(PYTHON) tests/test_chess.py
+	@echo ""
+	@echo "=== JS Emulator Tests ==="
+	node play/test_js_emulator.js
 
 clean:
 	rm -f $(BIN) $(PFILE)
