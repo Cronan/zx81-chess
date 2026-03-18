@@ -4,7 +4,7 @@ Complete chess game in 672 bytes of Z80 machine code, running on a Sinclair ZX81
 
 ## Build and test
 
-Requires `pasmo` (Z80 assembler) and Python 3.
+Requires `pasmo` (Z80 assembler), Python 3, and Node.js.
 
 ```bash
 make              # build + test
