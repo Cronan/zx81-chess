@@ -910,6 +910,7 @@
         const BOARD_BASE = 0x4082;
         const SIDE_ADDR = 0x40C8;
         const PIECE_NAMES = ['', 'P', 'N', 'B', 'R', 'Q', 'K'];
+        const KING = 6;
         let modernSquares = [];
         let lastBoardState = null;
         let selectedSquare = null;
@@ -1083,7 +1084,7 @@
             let whiteKing = false, blackKing = false;
             for (let i = 0; i < 64; i++) {
                 const piece = cpu.memory[BOARD_BASE + i];
-                if ((piece & 0x07) === 6) {
+                if ((piece & 0x07) === KING) {
                     if (piece & 0x08) blackKing = true;
                     else whiteKing = true;
                 }
@@ -1093,21 +1094,21 @@
             return null;
         }
 
-        function showGameOverMessage(result) {
-            const status = document.getElementById('status');
-            status.textContent = result === 'win' ? '** YOU WIN **' : '** YOU LOSE **';
+        const GAME_OVER_MSG = {
+            win:  { status: '** YOU WIN **',  icon: '\u2654', text: 'You win!', dot: 'white' },
+            loss: { status: '** YOU LOSE **', icon: '\u265A', text: 'You lose', dot: 'black' },
+        };
 
-            const overlay = document.getElementById('game-over-overlay');
-            const icon = document.getElementById('game-over-icon');
-            const text = document.getElementById('game-over-text');
-            icon.textContent = result === 'win' ? '\u2654' : '\u265A';
-            text.textContent = result === 'win' ? 'You win!' : 'You lose';
-            overlay.classList.add('visible');
+        function showGameOverMessage(result) {
+            const m = GAME_OVER_MSG[result];
+            document.getElementById('status').textContent = m.status;
+
+            document.getElementById('game-over-icon').textContent = m.icon;
+            document.getElementById('game-over-text').textContent = m.text;
+            document.getElementById('game-over-overlay').classList.add('visible');
 
             const modernStatus = document.getElementById('modern-status');
-            modernStatus.innerHTML = result === 'win'
-                ? '<span class="dot white"></span>You win!'
-                : '<span class="dot black"></span>You lose';
+            modernStatus.innerHTML = '<span class="dot ' + m.dot + '"></span>' + m.text;
             modernStatus.className = 'modern-status';
         }
 
@@ -1287,7 +1288,7 @@
         document.getElementById('keyboard').addEventListener('contextmenu', (e) => e.preventDefault());
 
         // Reset
-        document.getElementById('btn-reset').onclick = () => {
+        function resetGame() {
             running = false;
             gameOver = false;
             if (frameInterval) { clearInterval(frameInterval); frameInterval = null; }
@@ -1298,10 +1299,9 @@
             document.getElementById('game-over-overlay').classList.remove('visible');
             init();
             start();
-        };
-        document.getElementById('btn-game-over-reset').onclick = () => {
-            document.getElementById('btn-reset').click();
-        };
+        }
+        document.getElementById('btn-reset').onclick = resetGame;
+        document.getElementById('btn-game-over-reset').onclick = resetGame;
 
         // --- Skin toggle ---
         const skinToggle = document.getElementById('skin-toggle');
@@ -1404,9 +1404,7 @@
         });
 
         // --- Modern new game ---
-        document.getElementById('btn-modern-reset').onclick = () => {
-            document.getElementById('btn-reset').click();
-        };
+        document.getElementById('btn-modern-reset').onclick = resetGame;
 
         // Auto-start on load
         init();
