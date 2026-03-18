@@ -30,7 +30,7 @@ $(BIN): $(SRC)
 $(PFILE): $(BIN) tools/make_p_file.py
 	$(PYTHON) tools/make_p_file.py $(BIN) $(PFILE)
 
-test: $(BIN)
+test: $(PFILE)
 	@echo "=== Basic Tests ==="
 	$(PYTHON) test_harness.py
 	@echo ""
