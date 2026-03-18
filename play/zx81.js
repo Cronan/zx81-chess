@@ -162,16 +162,8 @@ class ZX81 {
         // Default display file location (will be overwritten by loadPFile)
         const defaultDisplayStart = 0x4469;
         this.cpu.ww(0x400C, defaultDisplayStart);
-        this.cpu.ww(0x400E, defaultDisplayStart + 1);
         this.cpu.wb(0x4025, 0xFF);
-
-        // Initialize display file
-        let addr = defaultDisplayStart;
-        this.cpu.wb(addr++, 0x76);
-        for (let row = 0; row < 24; row++) {
-            for (let col = 0; col < 32; col++) this.cpu.wb(addr++, 0x00);
-            this.cpu.wb(addr++, 0x76);
-        }
+        this.clearDisplay();
     }
 
     loadPFile(data) {

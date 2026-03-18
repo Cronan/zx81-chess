@@ -55,9 +55,7 @@ function setupEmulator() {
 
     // Load chess.p
     const pData = fs.readFileSync(__dirname + '/../chess.p');
-    for (let i = 0; i < pData.length; i++) {
-        cpu.wb(0x4009 + i, pData[i]);
-    }
+    zx81.loadPFile(pData);
 
     return { cpu, zx81 };
 }
@@ -358,8 +356,9 @@ console.log('\n=== Test 6: clearDisplay writes 0x76 row markers ===');
     // Verify each row ends with 0x76
     for (let row = 0; row < 24 && ok; row++) {
         const markerAddr = displayStart + 1 + row * 33 + 32;
-        if (!assert(cpu.rb(markerAddr) === 0x76,
-            `Row ${row} should end with 0x76 at offset ${markerAddr - displayStart}, got 0x${cpu.rb(markerAddr).toString(16)}`)) {
+        const val = cpu.rb(markerAddr);
+        if (!assert(val === 0x76,
+            `Row ${row} should end with 0x76 at offset ${markerAddr - displayStart}, got 0x${val.toString(16)}`)) {
             ok = false;
         }
     }
