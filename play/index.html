@@ -455,6 +455,35 @@
         }
         .modern-new-game:hover { border-color: #999; color: #ddd; }
 
+        .modern-board-container { position: relative; }
+
+        .game-over-overlay {
+            display: none;
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 3px;
+            z-index: 10;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(2px);
+            -webkit-backdrop-filter: blur(2px);
+        }
+        .game-over-overlay.visible { display: flex; }
+        .game-over-content {
+            text-align: center;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        }
+        .game-over-icon { font-size: 48px; margin-bottom: 8px; }
+        .game-over-text { font-size: 20px; font-weight: 700; margin-bottom: 16px; }
+        .game-over-overlay .modern-new-game {
+            border-color: #aaa;
+            color: #ddd;
+            font-size: 14px;
+            padding: 8px 24px;
+        }
+
         .palette-row {
             display: flex;
             gap: 8px;
@@ -816,6 +845,13 @@
                 <span>4</span><span>3</span><span>2</span><span>1</span>
             </div>
             <div class="modern-board" id="modern-board"></div>
+            <div class="game-over-overlay" id="game-over-overlay">
+                <div class="game-over-content">
+                    <div class="game-over-icon" id="game-over-icon"></div>
+                    <div class="game-over-text" id="game-over-text"></div>
+                    <button class="modern-new-game" id="btn-game-over-reset">New game</button>
+                </div>
+            </div>
         </div>
         <div class="modern-coords-bottom" aria-hidden="true">
             <span>a</span><span>b</span><span>c</span><span>d</span>
@@ -874,11 +910,13 @@
         const BOARD_BASE = 0x4082;
         const SIDE_ADDR = 0x40C8;
         const PIECE_NAMES = ['', 'P', 'N', 'B', 'R', 'Q', 'K'];
+        const KING = 6;
         let modernSquares = [];
         let lastBoardState = null;
         let selectedSquare = null;
         let lastMoveFrom = null;
         let lastMoveTo = null;
+        let gameOver = false;
 
         function isFilePosition(pos) { return pos === 0 || pos === 2; }
 
@@ -928,7 +966,7 @@
 
             const status = document.getElementById('status');
             if (!running) {
-                status.textContent = '';
+                if (!gameOver) status.textContent = '';
             } else if (!waitingForInput) {
                 status.textContent = 'Computer thinking\u2026';
             } else {
@@ -1014,8 +1052,10 @@
             if (!modernMode) return;
             const el = document.getElementById('modern-status');
             if (!running) {
-                el.innerHTML = '';
-                el.className = 'modern-status';
+                if (!gameOver) {
+                    el.innerHTML = '';
+                    el.className = 'modern-status';
+                }
                 return;
             }
             if (!waitingForInput) {
@@ -1038,6 +1078,50 @@
             if (to !== null && to < 64 && modernSquares[to]) {
                 modernSquares[to].classList.add('last-move');
             }
+        }
+
+        function checkGameOver() {
+            let whiteKing = false, blackKing = false;
+            for (let i = 0; i < 64; i++) {
+                const piece = cpu.memory[BOARD_BASE + i];
+                if ((piece & 0x07) === KING) {
+                    if (piece & 0x08) blackKing = true;
+                    else whiteKing = true;
+                }
+            }
+            if (!blackKing) return 'win';
+            if (!whiteKing) return 'loss';
+            return null;
+        }
+
+        const GAME_OVER_MSG = {
+            win:  { status: '** YOU WIN **',  icon: '\u2654', text: 'You win!', dot: 'white' },
+            loss: { status: '** YOU LOSE **', icon: '\u265A', text: 'You lose', dot: 'black' },
+        };
+
+        function showGameOverMessage(result) {
+            const m = GAME_OVER_MSG[result];
+            document.getElementById('status').textContent = m.status;
+
+            document.getElementById('game-over-icon').textContent = m.icon;
+            document.getElementById('game-over-text').textContent = m.text;
+            document.getElementById('game-over-overlay').classList.add('visible');
+
+            const modernStatus = document.getElementById('modern-status');
+            modernStatus.innerHTML = '<span class="dot ' + m.dot + '"></span>' + m.text;
+            modernStatus.className = 'modern-status';
+        }
+
+        function handleGameOver(result) {
+            running = false;
+            gameOver = true;
+            if (frameInterval) { clearInterval(frameInterval); frameInterval = null; }
+            zx81.render();
+            if (modernMode) {
+                renderModernBoard();
+                highlightLastMove(lastMoveFrom, lastMoveTo);
+            }
+            showGameOverMessage(result);
         }
 
         function clearModernSelection() {
@@ -1119,7 +1203,12 @@
             frameCount++;
 
             if (!hitHalt && running) {
-                if (thinkingStartFrame === 0) thinkingStartFrame = frameCount;
+                if (thinkingStartFrame === 0) {
+                    thinkingStartFrame = frameCount;
+                    // Player's move applied — check if black king captured
+                    const result = checkGameOver();
+                    if (result) { handleGameOver(result); return; }
+                }
                 waitingForInput = false;
             } else if (hitHalt) {
                 if (thinkingStartFrame > 0) {
@@ -1129,6 +1218,9 @@
                     thinkingStartFrame = 0;
                     waitingForInput = true;
                     moveChars = [];
+                    // AI's move applied — check if white king captured
+                    const result = checkGameOver();
+                    if (result) { handleGameOver(result); return; }
                 } else if (!waitingForInput && zx81.keyBuffer.length === 0) {
                     waitingForInput = true;
                     moveChars = [];
@@ -1196,16 +1288,20 @@
         document.getElementById('keyboard').addEventListener('contextmenu', (e) => e.preventDefault());
 
         // Reset
-        document.getElementById('btn-reset').onclick = () => {
+        function resetGame() {
             running = false;
+            gameOver = false;
             if (frameInterval) { clearInterval(frameInterval); frameInterval = null; }
             lastBoardState = null;
             lastMoveFrom = null;
             lastMoveTo = null;
             selectedSquare = null;
+            document.getElementById('game-over-overlay').classList.remove('visible');
             init();
             start();
-        };
+        }
+        document.getElementById('btn-reset').onclick = resetGame;
+        document.getElementById('btn-game-over-reset').onclick = resetGame;
 
         // --- Skin toggle ---
         const skinToggle = document.getElementById('skin-toggle');
@@ -1308,9 +1404,7 @@
         });
 
         // --- Modern new game ---
-        document.getElementById('btn-modern-reset').onclick = () => {
-            document.getElementById('btn-reset').click();
-        };
+        document.getElementById('btn-modern-reset').onclick = resetGame;
 
         // Auto-start on load
         init();
