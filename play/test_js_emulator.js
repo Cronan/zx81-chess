@@ -337,6 +337,43 @@ console.log('\n=== Test 5: Unconditional JR jumps to correct target ===');
     }
 }
 
+// --- Test 6: clearDisplay writes 0x76 row markers ---
+console.log('\n=== Test 6: clearDisplay writes 0x76 row markers ===');
+{
+    const { cpu, zx81 } = setupEmulator();
+
+    // Corrupt the display file to simulate a collapsed .P file (no 0x76 markers)
+    const displayStart = zx81.getDisplayStart();
+    for (let i = 0; i < 25 * 33; i++) {
+        cpu.wb(displayStart + i, 0x00);
+    }
+
+    // clearDisplay should rebuild the full structure
+    zx81.clearDisplay();
+
+    // Verify leading 0x76
+    let ok = true;
+    if (!assert(cpu.rb(displayStart) === 0x76, 'Display file should start with 0x76')) ok = false;
+
+    // Verify each row ends with 0x76
+    for (let row = 0; row < 24 && ok; row++) {
+        const markerAddr = displayStart + 1 + row * 33 + 32;
+        if (!assert(cpu.rb(markerAddr) === 0x76,
+            `Row ${row} should end with 0x76 at offset ${markerAddr - displayStart}, got 0x${cpu.rb(markerAddr).toString(16)}`)) {
+            ok = false;
+        }
+    }
+
+    // Verify DF_CC points to first printable position
+    const dfcc = cpu.rw(0x400E);
+    if (!assert(dfcc === displayStart + 1, `DF_CC should be displayStart+1, got 0x${dfcc.toString(16)}`)) ok = false;
+
+    if (ok) {
+        console.log('  clearDisplay correctly writes all 0x76 row markers');
+        passed++;
+    }
+}
+
 // --- Summary ---
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
 process.exit(failed > 0 ? 1 : 0);
