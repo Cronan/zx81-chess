@@ -147,12 +147,13 @@ class ZX81 {
 
     clearDisplay() {
         const displayStart = this.getDisplayStart();
-        let addr = displayStart + 1;
+        let addr = displayStart;
+        this.cpu.wb(addr++, 0x76);
         for (let row = 0; row < 24; row++) {
             for (let col = 0; col < 32; col++) {
                 this.cpu.wb(addr++, 0x00);
             }
-            addr++; // Skip newline
+            this.cpu.wb(addr++, 0x76);
         }
         this.cpu.ww(0x400E, displayStart + 1);
     }
