@@ -106,13 +106,13 @@ If you have a `.P` file (the ZX81's native tape format):
 
 For the true 1983 experience, type the program in from scratch:
 
-1. Open the emulator, set to 1K RAM
+1. Open the emulator with a RAM pack configured (the current build has
+   outgrown the unexpanded 1K machine - see the README's honesty note)
 2. You'll see the `K` cursor (the ZX81 is in keyword mode)
 3. Type line 1:
    - Press `E` for REM (in keyword mode, E = REM)
    - Press NEWLINE
-   - Now type 672 space characters after the REM
-   - (Or use a shorter REM and POKE the rest - see loader.bas)
+   - Now type 983 space characters after the REM
 
 4. Type line 2:
    - Type `2` (line number)
@@ -122,9 +122,11 @@ For the true 1983 experience, type the program in from scratch:
    - Press NEWLINE
 
 5. Now POKE in the machine code:
-   - Type each POKE command from the listing
+   - Type each POKE command, reading the bytes from hexdump.txt
+     (regenerated from chess.bin on every build - the loader.bas
+     listing is historical and stale)
    - Example: `POKE 16585,0` then NEWLINE
-   - Repeat for all 672 bytes...
+   - Repeat for all 983 bytes...
    - (This is why God invented tape recorders)
 
 6. When done:

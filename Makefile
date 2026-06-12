@@ -25,7 +25,7 @@ MAXSIZE ?= 984
 
 all: build test
 
-build: $(PFILE)
+build: $(PFILE) hexdump.txt
 
 $(BIN): $(SRC)
 	$(ASM) --bin $(SRC) $(BIN)
@@ -39,6 +39,10 @@ $(BIN): $(SRC)
 
 $(PFILE): $(BIN) tools/make_p_file.py
 	$(PYTHON) tools/make_p_file.py $(BIN) $(PFILE)
+
+# hexdump.txt is generated - never edit it by hand
+hexdump.txt: $(BIN) tools/make_hexdump.py
+	$(PYTHON) tools/make_hexdump.py $(BIN) hexdump.txt
 
 test: $(PFILE)
 	@echo "=== Basic Tests ==="

@@ -1,6 +1,8 @@
 # ZX81 1K Chess — King of the Castle
 
-Complete chess game in 672 bytes of Z80 machine code, running on a Sinclair ZX81 with 1K RAM. Playable online at https://cronan.github.io/zx81-chess/play/.
+Complete chess game in 983 bytes of Z80 machine code for the Sinclair ZX81. Playable online at https://cronan.github.io/zx81-chess/play/.
+
+Honesty note on "1K": the program has outgrown the true 1K RAM boundary ($43FF) — the REM now ends at $4459 and the emulators run the stack at $7FFF. It needs a 2K+ (or emulated) machine. The Makefile enforces a hard 984-byte ceiling (`MAXSIZE`) so it can't grow further unnoticed.
 
 ## Build and test
 
@@ -8,8 +10,9 @@ Requires `pasmo` (Z80 assembler), Python 3, and Node.js.
 
 ```bash
 make              # build + test
-make build        # assemble chess.asm → chess.bin → chess.p
-make test         # python3 test_harness.py && python3 tests/test_chess.py
+make build        # assemble chess.asm → chess.bin → chess.p (fails if > MAXSIZE)
+make test         # Python unit tests + JS emulator tests + cross-emulator diff
+make diff-test    # just the cross-emulator differential tests
 make clean        # remove built artefacts
 ```
 
@@ -19,44 +22,52 @@ CI runs on every push via GitHub Actions (`.github/workflows/ci.yml`).
 
 ```
 src/chess.asm           # Z80 assembly source (the game)
-src/loader.bas          # BASIC loader for manual entry on real hardware
+src/loader.bas          # Historical BASIC loader listing (stale; see hexdump.txt)
 test_harness.py         # Python Z80 emulator + test runner
-tests/test_chess.py     # 16 unit tests (board init, pieces, captures, promotion)
+tests/test_chess.py     # 40 unit tests (board init, pieces, captures, promotion, en passant)
+tests/games.json        # Scripted games for the cross-emulator differential tests
 play/index.html         # Browser UI with touch keyboard
 play/z80.js             # JavaScript Z80 CPU emulator
 play/zx81.js            # JavaScript ZX81 system emulation (keyboard, display)
+play/emu_test_lib.js    # Shared Node helpers for driving the JS emulator
+play/test_js_emulator.js# JS emulator regression tests
 tools/make_p_file.py    # Binary to ZX81 .P tape format converter
+tools/diff_runner.js    # JS half of the differential tests
+tools/diff_test.py      # Differential test driver/comparator
 docs/                   # Deep-dive documentation (annotated source, memory map, etc.)
 ```
 
 ## Architecture
 
-**Z80 assembly** (`src/chess.asm`): the actual game. 64-byte board lives inside a BASIC REM statement at $4082. Piece encoding: bits 0-2 = type (0=empty, 1=pawn ... 6=king), bit 3 = colour. AI is 1-ply material evaluation scanning all legal moves.
+**Z80 assembly** (`src/chess.asm`): the actual game. 64-byte board lives inside a BASIC REM statement at $4082. Piece encoding: bits 0-2 = type (0=empty, 1=pawn ... 6=king), bit 3 = colour. AI is 1-ply material evaluation scanning all legal moves. En passant is implemented; see Known limitations for what isn't.
 
 **Python test harness** (`test_harness.py`): minimal Z80 emulator (~72 instructions) that loads chess.bin and intercepts RST $10 for display, HALT for keyboard input. Used by both the sanity test and the unit test suite.
 
 **JavaScript emulator** (`play/`): separate Z80 + ZX81 emulation for browser play. Has had subtle bugs (JR off-by-one, stack collision, register mapping) so treat with care and test thoroughly.
+
+**Differential tests** (`tools/diff_test.py`): replay the scripted games in `tests/games.json` through both emulators and compare board state, AI move choice, ep square, and run status after every move. FRAMES ($4034) is pinned to 0 on both sides so the AI's tie-break coin flip is deterministic. Any future emulator divergence fails CI with a board diff.
 
 ## Key memory layout
 
 | Address | Content |
 |---|---|
 | $4082-$40C1 | Board (64 bytes, inside REM) |
-| $40C2-$40C8 | Working variables (cursor, move_from/to, best_from/to, best_score, side) |
+| $40C2-$40C8 | Working variables (ep_square, move_from/to, best_from/to, best_score, side) |
 | $40C9-$40EE | Lookup tables (piece chars, values, directions, init rank) |
-| $40EF-$4325 | Machine code (all routines) |
-| $4355-$43FF | Stack (grows downward) |
+| $40EF-$4458 | Machine code (all routines) |
+| SP = $7FFF | Stack (set by the emulators; outside the old 1K map) |
 
 ## Conventions
 
-- Z80 assembly changes must fit within 1024 bytes total. Every byte matters. Run `make build` to verify size.
+- The build fails if chess.bin exceeds `MAXSIZE` (984 bytes). Every byte matters: free bytes elsewhere before adding anything. Run `make build` to verify size.
 - When fixing JS emulator bugs, add a regression test. Recent history shows recurring issues with instruction accuracy.
-- Test both Python harness and JS emulator; they can diverge.
+- Test both Python harness and JS emulator; `make test` runs the differential suite that catches divergence.
+- `hexdump.txt` is regenerated by `make build` — never edit it by hand.
 - Documentation in `docs/` is extensive. Read `docs/ANNOTATED.md` before modifying chess.asm.
 
 ## Known limitations (intentional)
 
-No castling, en passant, check/checkmate detection, stalemate, or multi-ply search. These are deliberate trade-offs for the 1K constraint, not bugs.
+No castling, check/checkmate detection, stalemate, or multi-ply search. These are deliberate trade-offs for the byte budget, not bugs. (En passant WAS on this list until the code was deduplicated enough to pay for it.)
 
 ## Git
 

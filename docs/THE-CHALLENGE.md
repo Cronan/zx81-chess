@@ -126,13 +126,21 @@ Castling requires:
 
 That's at least 40 bytes we can't afford. Sorry, King. You walk everywhere.
 
-### 2. En Passant (~30 bytes saved)
+### 2. En Passant (~30 bytes saved... at first)
 
 En passant requires:
 - Tracking whether the last move was a double pawn push (1 byte + logic)
 - Special capture logic for pawns
 
 30 bytes. No thanks. Pawns capture normally or not at all.
+
+**Update from the future:** this one eventually made it in. Deduplicating
+repeated code paths (board indexing, column-delta checks, piece-value
+scoring, the header/footer print loop) freed enough bytes to pay for the
+full rule - set on double push, lasts one ply, AI considers it - at a
+real cost of ~57 bytes. The tracking byte reuses the variable slot
+originally reserved for a cursor feature that never happened. See
+ANNOTATED.md for the implementation.
 
 ### 3. Check and Checkmate Detection (~80 bytes saved)
 

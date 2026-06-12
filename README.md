@@ -8,8 +8,8 @@
 
   "KING OF THE CASTLE"
 
-  A complete chess game in 672 bytes of Z80 machine code
-  Running in 1K of RAM on the Sinclair ZX81
+  A complete chess game in 983 bytes of Z80 machine code
+  Born in 1K of RAM on the Sinclair ZX81
 
   +-+-+-+-+-+-+-+-+
  8|r|n|b|q|k|b|n|r|
@@ -42,46 +42,49 @@
 Or use a dedicated emulator for the authentic experience:
 - [EightyOne](https://sourceforge.net/projects/eightyone-sinclair-emulator/) (Windows)
 - [sz81](http://sz81.sourceforge.net/) (Linux/Mac)
-- [JtyOne Online](https://www.zx81stuff.org.uk/zx81/jtyone.html) (load `chess.p` with 1K memory)
+- [JtyOne Online](https://www.zx81stuff.org.uk/zx81/jtyone.html) (load `chess.p`; needs more than the 1K setting - see honesty note below)
 
 ---
 
 ## What Is This?
 
-This is a chess game that runs on the **Sinclair ZX81** (or Timex Sinclair 1000) in just **1 kilobyte of RAM** - the standard, unexpanded machine with no RAM pack.
+This is a chess game for the **Sinclair ZX81** (or Timex Sinclair 1000), written in the spirit of the unexpanded 1K machine.
 
-672 bytes of hand-crafted Z80A machine code. No BASIC interpreter overhead. No 16K RAM pack. Just raw metal.
+983 bytes of hand-crafted Z80A machine code. No BASIC interpreter overhead. Just raw metal.
 
-The entire program - board state, display engine, player input, move validation, and a computer opponent with material-based evaluation - fits inside a single `REM` statement in a two-line BASIC program:
+The entire program - board state, display engine, player input, move execution (including en passant!), and a computer opponent with material-based evaluation - fits inside a single `REM` statement in a two-line BASIC program:
 
 ```
-1 REM ... (672 bytes of machine code hiding in here)
+1 REM ... (983 bytes of machine code hiding in here)
 2 RAND USR 16514
 ```
 
-That's it. Two lines. One kilobyte. A game of chess.
+That's it. Two lines. A game of chess.
+
+**An honesty note about "1K":** the original 1983 version fitted in the unexpanded machine's 1024 bytes. This rewrite started there too, then gained features (win messages, centre-bonus evaluation, random tie-breaking, en passant) and outgrew the boundary - the REM now ends at $4459, past the 1K limit of $43FF, so the current build needs a 2K+ (or emulated) machine. The build enforces a hard 984-byte ceiling so it can't creep further; getting back under true 1K would mean giving features back.
 
 ---
 
-## Where the 672 Bytes Go
+## Where the 983 Bytes Go
 
 ```
 Component        Bytes   What it does
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Board Data         64    ████████░░░░░░░░░░░░░░░░░░░  The 8x8 board (1 byte/square)
-Variables           7    █░░░░░░░░░░░░░░░░░░░░░░░░░░  Cursor, move coords, best move
-Lookup Tables      38    ████░░░░░░░░░░░░░░░░░░░░░░░  Piece chars, values, directions
+Board Data         64    ████░░░░░░░░░░░░░░░░░░░░░░░  The 8x8 board (1 byte/square)
+Variables           7    █░░░░░░░░░░░░░░░░░░░░░░░░░░  EP square, move coords, best move
+Lookup Tables      38    ██░░░░░░░░░░░░░░░░░░░░░░░░░  Piece chars, values, directions
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Display            85    █████████░░░░░░░░░░░░░░░░░░  Draw board to screen
-Input              90    █████████░░░░░░░░░░░░░░░░░░  Read player moves from keyboard
-Move Logic        100    ██████████░░░░░░░░░░░░░░░░░  Execute moves, pawn promotion
-AI Engine         250    █████████████████████████░░  Generate moves, evaluate, choose
-Game Loop          38    ████░░░░░░░░░░░░░░░░░░░░░░░  Main loop, win/lose detection
+Board Init         59    ████░░░░░░░░░░░░░░░░░░░░░░░  Set up the starting position
+Display           100    ██████░░░░░░░░░░░░░░░░░░░░░  Draw board to screen
+Input              86    ██████░░░░░░░░░░░░░░░░░░░░░  Read player moves from keyboard
+Move Logic        102    ███████░░░░░░░░░░░░░░░░░░░░  Execute moves, en passant, promotion
+AI Engine         423    ███████████████████████████  Generate moves, evaluate, choose
+Game Loop & Msgs  104    ███████░░░░░░░░░░░░░░░░░░░░  Main loop, king check, win/lose
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TOTAL             672    ███████████████████████████  Every byte accounted for
+TOTAL             983    Every byte accounted for (ceiling: 984)
 ```
 
-The AI alone - scanning pieces, generating legal moves, evaluating captures, picking the best - takes 37% of the entire program. Display and input together are another 26%. That leaves just 250 bytes for everything else.
+The AI alone - scanning pieces, generating legal moves, evaluating captures, picking the best - takes 43% of the entire program. Display and input together are another 19%. Everything else fights over what's left.
 
 ---
 
@@ -113,12 +116,12 @@ GAME OVER:
 
 ### On a Real ZX81
 
-1. Type in the BASIC loader from `src/loader.bas` (requires 16K RAM pack for the loader)
-2. Run it to POKE the machine code into memory
-3. `SAVE "CHESS"` to tape
-4. Remove the 16K RAM pack (yes, really)
-5. `LOAD "CHESS"` on the 1K machine
-6. The game starts automatically
+1. Type in the bytes from `hexdump.txt` with a POKE loop (the listing in
+   `src/loader.bas` is historical and stale - don't type that one in)
+2. `SAVE "CHESS"` to tape
+3. `LOAD "CHESS"` on a ZX81 with a RAM pack (the current build has
+   outgrown the unexpanded 1K machine - see the honesty note above)
+4. The game starts automatically
 
 See **[docs/EMULATOR.md](docs/EMULATOR.md)** for detailed emulator setup instructions.
 
@@ -130,8 +133,8 @@ See **[docs/EMULATOR.md](docs/EMULATOR.md)** for detailed emulator setup instruc
 |---|---|
 | **Target Machine** | Sinclair ZX81 / Timex Sinclair 1000 |
 | **CPU** | Zilog Z80A @ 3.25 MHz |
-| **RAM Required** | 1024 bytes (1K) - no expansion needed |
-| **Code Size** | 672 bytes of Z80 machine code |
+| **RAM Required** | 2K+ (the rewrite outgrew its 1K origins - see honesty note above) |
+| **Code Size** | 983 bytes of Z80 machine code (hard ceiling: 984) |
 | **Language** | Z80A assembly, hand-assembled |
 | **Board Storage** | 64 bytes inside the REM statement |
 | **AI Depth** | 1-ply with material evaluation |
@@ -146,7 +149,9 @@ See **[docs/EMULATOR.md](docs/EMULATOR.md)** for detailed emulator setup instruc
 
 - **No separate initialisation data** - The starting position is generated algorithmically rather than stored as a 64-byte lookup table. The back rank pattern `R N B Q K B N R` is stored once (8 bytes) and reused for both White and Black.
 
-- **Pawn promotion in 12 bytes** - Just checks if a pawn reached the far rank, and replaces it with a Queen. No choice of piece - you get a Queen and you'll like it.
+- **Pawn promotion in one path for both colours** - Just checks if a pawn reached the far rank, and crowns `5 OR side` - the Queen of whoever moved. No choice of piece - you get a Queen and you'll like it.
+
+- **En passant paid for by deduplication** - The full en passant rule (set on double push, lasts one ply, removes the bypassed pawn, AI considers it) costs ~57 bytes. Those bytes were freed by deduplicating code paths: shared board-indexing helper, shared column-delta check, shared piece-value scoring, and one print routine for the header and footer file letters. The ep square itself reuses a byte that was reserved for a cursor feature that never happened.
 
 - **King capture = checkmate** - Full check/checkmate detection would cost ~80 bytes we don't have. Instead, the game ends when someone captures the King. You can technically move into check (the computer won't stop you, but it *will* take your King).
 
@@ -171,10 +176,9 @@ It won't win any tournaments, but it will:
 ### Known Weaknesses
 
 - No look-ahead (doesn't see traps or forks)
-- Slight queenside bias (scans a-h, keeps first equally-scored move)
 - No opening theory (improvises from move 1)
 - Doesn't understand check (can move its King into danger)
-- No castling, en passant, or promotion choice
+- No castling or promotion choice (en passant, though? Got that.)
 
 ---
 
@@ -188,15 +192,18 @@ zx81-chess/
 │
 ├── src/
 │   ├── chess.asm ........... Z80 assembly source (fully commented)
-│   └── loader.bas .......... BASIC loader for typing in by hand
+│   └── loader.bas .......... Historical BASIC loader (stale - use hexdump.txt)
 │
 ├── tests/
-│   └── test_chess.py ....... Comprehensive test suite (16 tests)
+│   ├── test_chess.py ....... Comprehensive test suite (40 tests)
+│   └── games.json .......... Scripted games for cross-emulator testing
 │
 ├── play/
 │   ├── index.html .......... Online emulator web interface
 │   ├── z80.js .............. JavaScript Z80 CPU emulator
-│   └── zx81.js ............. ZX81 system emulation
+│   ├── zx81.js ............. ZX81 system emulation
+│   ├── emu_test_lib.js ..... Shared Node helpers for driving the emulator
+│   └── test_js_emulator.js . JS emulator regression tests
 │
 ├── docs/
 │   ├── ANNOTATED.md ........ Deep walkthrough of every routine
@@ -207,11 +214,14 @@ zx81-chess/
 │   └── MEMORY-MAP.md ....... Complete memory layout
 │
 ├── tools/
-│   └── make_p_file.py ...... Convert binary to ZX81 .P format
+│   ├── make_p_file.py ...... Convert binary to ZX81 .P format
+│   ├── make_hexdump.py ..... Regenerate hexdump.txt from the binary
+│   ├── diff_runner.js ...... JS half of the cross-emulator tests
+│   └── diff_test.py ........ Cross-emulator differential test driver
 │
-├── chess.bin ............... Assembled binary (672 bytes)
+├── chess.bin ............... Assembled binary (983 bytes)
 ├── chess.p ................. Ready-to-load ZX81 tape file
-└── hexdump.txt ............. Raw hex bytes for manual entry
+└── hexdump.txt ............. Raw hex bytes for manual entry (auto-generated)
 ```
 
 ---
@@ -229,14 +239,23 @@ make test
 make
 ```
 
-The test suite includes **16 unit tests** covering:
+The build fails if the binary exceeds its 984-byte ceiling, so the size
+constraint is enforced by CI rather than by vigilance.
+
+The test suite includes **40 unit tests** covering:
 - Board initialization and piece placement
 - All piece movement patterns (knight L-shapes, bishop diagonals, etc.)
 - Capture logic and priority (prefers high-value targets)
 - Edge cases (board boundaries, blocking, pawn promotion)
+- En passant (player capture, AI capture, one-ply expiry)
 - Game-over detection
 
-Tests run against actual Z80 machine code using a cycle-accurate emulator.
+Tests run against actual Z80 machine code in the Python emulator. On top
+of that, a **cross-emulator differential suite** replays scripted games
+through both the Python harness and the JavaScript browser emulator and
+compares board state, AI move choice, and en passant state after every
+move - the two emulators have diverged subtly in the past, and now any
+divergence fails CI with a board diff.
 
 ---
 
@@ -280,7 +299,7 @@ For context, this README file is about 9 kilobytes. The entire chess game would 
 |_________________________________|
 ```
 
-*672 bytes. Every one of them earned.*
+*983 bytes. Every one of them earned.*
 
 ---
 
