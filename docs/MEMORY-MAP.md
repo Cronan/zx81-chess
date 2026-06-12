@@ -9,13 +9,14 @@
 
 Every byte, accounted for.
 
-> **Honesty note:** the program has outgrown the true 1K boundary. The
-> REM statement now ends at $4459, past the unexpanded machine's RAM
-> top of $43FF, and the emulators run the stack at $7FFF. The original
-> 1983 version fitted in 1K; this rewrite traded that purity for
-> features (win messages, centre bonus, random tie-breaking, en
-> passant). The Makefile enforces a hard 984-byte binary ceiling so it
-> can't creep further.
+> **Honesty note:** the program still ends past the true 1K boundary -
+> the REM statement ends at $4418, 24 bytes beyond the unexpanded
+> machine's RAM top of $43FF - and the emulators run the stack at
+> $7FFF. The original 1983 version fitted in 1K; this rewrite traded
+> that purity for features (win messages, centre bonus, random
+> tie-breaking, en passant), and a deduplication pass has since clawed
+> most of the overrun back. The Makefile enforces a hard 984-byte
+> binary ceiling, leaving 66 bytes of headroom for future features.
 
 ---
 
@@ -33,15 +34,16 @@ $40D0 - $40D6    7       Piece values table
 $40D7 - $40DE    8       King/Queen direction table
 $40DF - $40E6    8       Knight direction table
 $40E7 - $40EE    8       Initial rank data
-$40EF - $4458    874     Machine code + message data (executable)
-$4459            1       NEWLINE (end of REM)
-$445A - $446B    18      BASIC Line 2 (RAND USR)
-$446C - $4485    26      Display file (collapsed)
-$4486+                   E_LINE / free RAM / stack
+$40EF - $4417    809     Machine code + message data (executable)
+$4418            1       NEWLINE (end of REM)
+$4419 - $442A    18      BASIC Line 2 (RAND USR)
+$442B - $4444    26      Display file (collapsed)
+$4445+                   E_LINE / free RAM / stack
 ```
 
 The binary (`chess.bin`) is the REM content: board + variables +
-tables + code = 64 + 7 + 38 + 874 = **983 bytes** (ceiling: 984).
+tables + code = 64 + 7 + 38 + 809 = **918 bytes** (ceiling: 984,
+so 66 bytes are banked for future features).
 
 ---
 
@@ -60,9 +62,9 @@ $4006  MODE      DB  $00        Cursor mode
 $4007  PPC       DW  $0000      Current BASIC line
 $4009  VERSN     DB  $00        BASIC version
 $400A  E_PPC     DW  $0000      Edit line number
-$400C  D_FILE    DW  $446C      Address of display file <<<
-$400E  DF_CC     DW  $446D      Print position
-$4010  VARS      DW  $4485      Variables area address
+$400C  D_FILE    DW  $442B      Address of display file <<<
+$400E  DF_CC     DW  $442C      Print position
+$4010  VARS      DW  $4444      Variables area address
 $4012  DEST      DW  $0000      Variable destination
 $4014  E_LINE    DW  $xxxx      Edit line address
 $4016  CH_ADD    DW  $xxxx      Character address
@@ -97,7 +99,7 @@ $407B  not used  DW  $0000
 
 ```
 $407D  DW  $0001        Line number: 1 (stored big-endian!)
-$407F  DW  $03D9        Line length: 985 (REM + 983 content + NL)
+$407F  DW  $0398        Line length: 920 (REM + 918 content + NL)
 $4081  DB  $EA          REM token
 ```
 
@@ -112,7 +114,7 @@ Byte 5+:   Content
 Last byte: NEWLINE ($76)
 ```
 
-The length field = everything from byte 4 to end including NEWLINE = 1 + 983 + 1 = 985 = $03D9.
+The length field = everything from byte 4 to end including NEWLINE = 1 + 918 + 1 = 920 = $0398.
 
 ### Board Data ($4082 - $40C1)
 
@@ -230,63 +232,63 @@ Initial Rank ($40E7 - $40EE):
   $40EE  $04  (Rook)
 ```
 
-### Machine Code ($40EF - $4458)
+### Machine Code ($40EF - $4417)
 
-874 bytes of executable Z80 machine code (including 14 bytes of
-message data at $412B - $4138). Routine entry points in the current
+809 bytes of executable Z80 machine code (including 14 bytes of
+message data at $412A - $4137). Routine entry points in the current
 build:
 
 ```
-$40EF  start            $4294  check_kings
-$40F5  game_loop        $42AA  think
-$412B  msg_win/msg_lose $42DF  gen_pawn
-$4139  init_board       $431C  check_pawn_cap
-$4174  cls_and_draw     $4339  gen_knight
-$41AE  print_files      $4365  gen_king
-$41C0  get_piece_char   $4391  gen_slider
-$41D8  get_move         $43F0  board_addr
-$4201  get_square       $43F9  get_board_sq
-$421E  wait_key         $4402  check_col_delta
-$422E  make_move        $4411  score_move
-$4238  ai_make_move     $4429  try_move
-$4240  do_move          $4451  print_msg
+$40EF  start            $427E  check_kings
+$40F5  game_loop        $4294  think
+$412A  msg_win/msg_lose $42C6  gen_pawn
+$4138  init_board       $4301  check_pawn_cap
+$4173  cls_and_draw     $431E  gen_knight
+$41A8  print_files      $4325  gen_king
+$41BA  get_piece_char   $4352  gen_slider
+$41D0  get_move         $43B1  board_addr / lut
+$41F9  get_square       $43BA  get_board_sq
+$4216  wait_key         $43C3  check_col_delta
+$4222  make_move        $43D2  score_move
+$4227  ai_make_move     $43E8  try_move
+$422D  do_move          $4410  print_msg
 ```
 
 See `chess.asm` for the full source and `ANNOTATED.md` for the
 instruction-by-instruction walkthrough.
 
-### Message Data ($412B - $4138)
+### Message Data ($412A - $4137)
 
 ```
 "YOU WIN":  $3E $34 $3A $00 $3C $2E $33 $FF
 "I WIN":   $2E $00 $3C $2E $33 $FF
 ```
 
-### End of REM / BASIC Line 2 ($4459 - $446B)
+### End of REM / BASIC Line 2 ($4418 - $442A)
 
 ```
-$4459  $76          NEWLINE (end of line 1 / REM statement)
+$4418  $76          NEWLINE (end of line 1 / REM statement)
 
-$445A  $00 $02      Line number: 2
-$445C  $0E $00      Length: 14 bytes
-$445E  $F1          RAND token
-$445F  $D4          USR token
-$4460  ...          Number encoding for 16514
-$446B  $76          NEWLINE (end of line 2)
+$4419  $00 $02      Line number: 2
+$441B  $0E $00      Length: 14 bytes
+$441D  $F1          RAND token
+$441E  $D4          USR token
+$441F  ...          Number encoding for 16514
+$442A  $76          NEWLINE (end of line 2)
 ```
 
 Note: ZX81 BASIC stores numbers in a special format: the ASCII digits followed by a 5-byte floating-point representation. "16514" takes about 10 bytes in this encoding.
 
-### Display File ($446C - $4485)
+### Display File ($442B - $4444)
 
 In collapsed mode, the display file starts as just 25 NEWLINE bytes:
 
 ```
-$446C  $76          Line 0  (top of screen)
-$446D  $76          Line 1
-$446E  $76          Line 2
+$442B  $76          Line 0  (top of screen)
+$442C  $76          Line 1
+$442D  $76          Line 2
 ...
-$4485  $76          Line 24 (bottom of screen)
+$4444  $76          Line 24 (bottom of screen)
 ```
 
 When the program draws the chess board using RST $10 (print character), the display file automatically expands. Each character printed on a previously empty line causes the line to grow. The system variables D_FILE, VARS, E_LINE, etc., are adjusted automatically by the ROM print routine.
@@ -337,23 +339,23 @@ BASIC overhead         24      (line 1 header + line 2 + NEWLINEs)
 Board data             64
 Working variables      7
 Lookup tables          38
-Machine code           860
+Machine code           795
 Message data           14
 Display file           26
                        ----
-Through display file:  1158    ($4000 - $4485)
+Through display file:  1093    ($4000 - $4444)
 ```
 
-The binary itself: 983 of a hard 984-byte ceiling. One byte free.
-In this program, that's practically an ocean.
+The binary itself: 918 of a hard 984-byte ceiling. 66 bytes free,
+banked for future features. In this program, that's a fortune.
 
 ---
 
 ```
-$4000 ============================== $4485
+$4000 ============================== $4444
 |SYS|BAS| BOARD |V| TBL | CODE >>>>>>>>>>>>>>>>>>>>>>>|B|DISP|
-|VAR|HDR| 64 B  | | 38B | 874 bytes of pure Z80       |2|FILE|
+|VAR|HDR| 64 B  | | 38B | 809 bytes of pure Z80       |2|FILE|
 |125| 5 |       |7|     | machine code brilliance      |18| 26 |
 ==============================================================
-        983 binary bytes. Not one wasted. (Ceiling: 984.)
+   918 binary bytes. Not one wasted. (Ceiling: 984; 66 banked.)
 ```

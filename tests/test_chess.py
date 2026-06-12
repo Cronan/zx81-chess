@@ -121,8 +121,10 @@ class ChessTest:
     def find_get_piece_char(self, cpu):
         """Find get_piece_char by scanning cls_and_draw for CALL in col_loop."""
         draw_addr = self.find_cls_and_draw(cpu)
-        # Scan forward for the CALL inside the column loop
-        for addr in range(draw_addr + 30, draw_addr + 120):
+        # Scan forward for the CALL inside the column loop. The first-byte
+        # check (get_piece_char starts with AND A) filters out the other
+        # CALLs (ROM_CLS, print_files), so scan from just past the start.
+        for addr in range(draw_addr + 6, draw_addr + 120):
             if cpu.rb(addr) == 0xCD:
                 target = cpu.rb(addr + 1) | (cpu.rb(addr + 2) << 8)
                 # get_piece_char starts with AND A (0xA7)

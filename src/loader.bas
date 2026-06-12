@@ -6,7 +6,8 @@ REM
 REM   *** HISTORICAL LISTING - DO NOT TYPE IN ***
 REM   This loader captures an early version of the
 REM   machine code and has NOT been kept in sync as
-REM   the game grew (it is now 983 bytes, not 672).
+REM   the game evolved (this listing assumed 672
+REM   bytes; the current size is in hexdump.txt).
 REM   For manual entry, use hexdump.txt instead: it
 REM   is regenerated from chess.bin on every build.
 REM

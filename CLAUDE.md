@@ -1,8 +1,8 @@
 # ZX81 1K Chess — King of the Castle
 
-Complete chess game in 983 bytes of Z80 machine code for the Sinclair ZX81. Playable online at https://cronan.github.io/zx81-chess/play/.
+Complete chess game in 918 bytes of Z80 machine code for the Sinclair ZX81 (66 bytes of headroom under the build's hard 984-byte ceiling, banked for future features). Playable online at https://cronan.github.io/zx81-chess/play/.
 
-Honesty note on "1K": the program has outgrown the true 1K RAM boundary ($43FF) — the REM now ends at $4459 and the emulators run the stack at $7FFF. It needs a 2K+ (or emulated) machine. The Makefile enforces a hard 984-byte ceiling (`MAXSIZE`) so it can't grow further unnoticed.
+Honesty note on "1K": the program still ends past the true 1K RAM boundary ($43FF) — the REM now ends at $4418, 24 bytes over — and the emulators run the stack at $7FFF. It needs a 2K+ (or emulated) machine. The Makefile enforces the `MAXSIZE` ceiling so the binary can't grow unnoticed.
 
 ## Build and test
 
@@ -54,7 +54,7 @@ docs/                   # Deep-dive documentation (annotated source, memory map,
 | $4082-$40C1 | Board (64 bytes, inside REM) |
 | $40C2-$40C8 | Working variables (ep_square, move_from/to, best_from/to, best_score, side) |
 | $40C9-$40EE | Lookup tables (piece chars, values, directions, init rank) |
-| $40EF-$4458 | Machine code (all routines) |
+| $40EF-$4417 | Machine code (all routines) |
 | SP = $7FFF | Stack (set by the emulators; outside the old 1K map) |
 
 ## Conventions

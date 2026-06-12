@@ -23,15 +23,16 @@
 ;   $407D-$407F  BASIC Line 1 header       (5 bytes: line num + length + REM)
 ;   $4082        Start of REM content      (= start of machine code)
 ;   $4082-$40C1  Board data                (64 bytes, inside REM)
-;   $40C2-$4458  Machine code + data       (~919 bytes)
-;   $4459        NEWLINE (end of REM)      (1 byte)
-;   $445A-$446B  BASIC Line 2             (RAND USR 16514)
-;   $446C-$4485  Display file             (collapsed, ~25 bytes)
-;   $4486+       Stack space
+;   $40C2-$4417  Machine code + data       (~854 bytes)
+;   $4418        NEWLINE (end of REM)      (1 byte)
+;   $4419-$442A  BASIC Line 2             (RAND USR 16514)
+;   $442B-$4444  Display file             (collapsed, ~25 bytes)
+;   $4445+       Stack space
 ;
-;   Total binary (board + code + data): 983 bytes
-;   (The Makefile enforces a hard 984-byte ceiling. Honesty note: the
-;   program has outgrown the true 1K boundary at $43FF - it currently
+;   Total binary (board + code + data): 918 bytes
+;   (The Makefile enforces a hard 984-byte ceiling, leaving 66 bytes
+;   of headroom for future features. Honesty note: the program still
+;   ends past the true 1K boundary at $43FF - by 24 bytes now - so it
 ;   needs a 2K+/emulated machine. The original 1983 version fitted.)
 ;
 ; ============================================================================
@@ -228,7 +229,7 @@ game_loop:
             call    check_kings
             jr      nz, black_wins
 
-            jp      game_loop       ; Next turn!
+            jr      game_loop       ; Next turn!
 
 white_wins:
             ld      hl, msg_win
@@ -344,20 +345,21 @@ cls_and_draw:
             ; Rank 8 = board offset 56, rank 1 = board offset 0
 
             ld      c, 8            ; Row counter (8 down to 1)
-            ld      ix, board + 56  ; Start at rank 8 (a8)
+            ld      de, board + 56  ; DE -> rank 8 (a8); saved around
+                                    ; ROM prints, no IX prefix tax
 
 row_loop:
             ; Print rank number
+            push    de
             ld      a, CH_0
             add     a, c            ; '0' + rank number
             rst     $10
             ld      a, CH_SPACE
             rst     $10
+            pop     de
 
             ; Print 8 squares in this rank
             ld      b, 8            ; Column counter
-            push    ix
-            pop     de              ; DE = pointer into board row
 
 col_loop:
             ld      a, (de)         ; Get piece at this square
@@ -372,16 +374,15 @@ col_loop:
             inc     de              ; Next square
             djnz    col_loop
 
+            push    de
             ld      a, CH_NEWLINE
             rst     $10
+            pop     de
 
-            ; Move to previous rank (rank - 1 = 8 squares back)
-            push    ix
-            pop     hl
-            ld      de, -8
+            ; DE is one past this rank; step back 16 to the rank below
+            ld      hl, -16
             add     hl, de
-            push    hl
-            pop     ix
+            ex      de, hl
 
             dec     c
             jr      nz, row_loop
@@ -424,11 +425,8 @@ get_piece_char:
 gpc_piece:
             push    af              ; Save full piece code
             and     $07             ; Mask to piece type (0-6)
-            ld      e, a
-            ld      d, 0
             ld      hl, piece_chars
-            add     hl, de
-            ld      a, (hl)         ; Get display character
+            call    lut             ; Get display character
 
             ; Now check if it's a black piece (bit 3 set)
             pop     de              ; D = original piece code, E = flags (from push af)
@@ -531,15 +529,14 @@ get_square:
 ; just poll LAST_K and wait for it to change.
 
 wait_key:
-            halt                    ; Wait for TV frame (1/50th sec)
+            ld      hl, LAST_K      ; Poll via pointer (clobbers HL)
+wk_loop:    halt                    ; Wait for TV frame (1/50th sec)
                                     ; The HALT also lets the display work!
-            ld      a, ($4025)      ; Read LAST_K (key code)
-            cp      $FF             ; $FF = no key pressed
-            jr      z, wait_key     ; Keep waiting
-            push    af
-            ld      a, $FF
-            ld      ($4025), a      ; Clear the key buffer
-            pop     af
+            ld      a, (hl)         ; Read LAST_K (key code)
+            inc     a               ; $FF (no key) wraps to 0, setting Z
+            jr      z, wk_loop      ; Keep waiting
+            ld      (hl), $FF       ; Clear the key buffer
+            dec     a               ; Undo the INC: A = key code
             ret
 
 ; ============================================================================
@@ -549,18 +546,18 @@ wait_key:
 ; Reads from move_from/move_to (for player) or
 ; best_from/best_to (for computer).
 
+; move_from/move_to and best_from/best_to are adjacent byte pairs,
+; so one HL pointer loads both squares.
 make_move:
-            ld      a, (move_from)
-            ld      c, a
-            ld      a, (move_to)
-            ld      b, a
-            jr      do_move
+            ld      hl, move_from
+            jr      mm_load
 
 ai_make_move:
-            ld      a, (best_from)
-            ld      c, a
-            ld      a, (best_to)
-            ld      b, a
+            ld      hl, best_from
+
+mm_load:    ld      c, (hl)         ; C = source square
+            inc     hl
+            ld      b, (hl)         ; B = destination square
 
 ; --- Common move execution ---
 ; C = source square, B = destination square
@@ -596,12 +593,11 @@ dm_pawn:
             ld      a, (ep_square)
             cp      b               ; Landed on the ep square?
             jr      nz, dm_rearm
-            ld      a, c
-            and     $38             ; Source rank...
-            ld      d, a
+            ; XOR merge: source rank bits with destination file bits
             ld      a, b
-            and     $07             ; ...destination file
-            or      d
+            xor     c
+            and     $38             ; Rank bits where from/to differ
+            xor     b               ; = (C AND $38) OR (B AND $07)
             push    hl
             call    board_addr
             ld      (hl), 0         ; Remove the captured pawn
@@ -719,11 +715,11 @@ think_scan:
 
             ; Branch by piece type for move generation
             cp      1
-            jp      z, gen_pawn
+            jr      z, gen_pawn
             cp      2
-            jp      z, gen_knight
+            jr      z, gen_knight
             cp      6
-            jp      z, gen_king
+            jr      z, gen_king
 
             ; Bishop, Rook, or Queen - sliding pieces
             jp      gen_slider
@@ -780,9 +776,7 @@ gp_cap:
             sub     7               ; Forward-left
             jr      c, gp_cap2      ; Off board
             ld      c, a
-            ; Check column didn't wrap (file changed by exactly 1)
-            call    check_pawn_cap
-            jr      z, gp_cap2      ; Not a valid capture
+            call    check_pawn_cap  ; Records the capture if valid
 
 gp_cap2:
             ld      a, e
@@ -828,8 +822,23 @@ cpc_bad:    ret
 
 gen_knight:
             ld      hl, knight_dirs
-            ld      b, 8            ; 8 possible moves
-gn_loop:    push    bc
+            ld      d, 3            ; Column may change by 1 or 2
+            jr      gnk_start
+
+; --- King move generation ---
+; Same idea as the Knight: 8 single-step offsets from a table. The
+; ONLY differences are which table and how far the column may
+; legally change, so one loop serves both pieces. The column-delta
+; limit travels in D, which is free here (the piece type the think
+; dispatch left in D isn't needed again) and is preserved by every
+; helper the loop calls.
+
+gen_king:
+            ld      hl, king_dirs
+            ld      d, 2            ; Column may change by 1 only
+
+gnk_start:  ld      b, 8            ; 8 possible moves
+gnk_loop:   push    bc
             push    hl
 
             ld      a, (hl)         ; Get direction offset
@@ -840,62 +849,27 @@ gn_loop:    push    bc
             add     a, c            ; Add offset (may wrap/overflow)
             ; Check bounds: 0 <= result <= 63
             cp      64
-            jr      nc, gn_skip     ; Off the board (unsigned compare)
+            jr      nc, gnk_skip    ; Off the board (unsigned compare)
 
-            ; Check column didn't wrap too far
-            ; For knights, column can change by 1 or 2
+            ; Check column didn't wrap around the board edge
             ld      c, a            ; C = target square
             call    check_col_delta
-            cp      3               ; Delta must be 0, 1, or 2
-            jr      nc, gn_skip     ; Column wrapped!
+            cp      d               ; Delta within this piece's limit?
+            jr      nc, gnk_skip    ; Column wrapped!
 
             ; Check target square
             call    get_board_sq    ; A = piece at target
             bit     3, a            ; Own (Black) piece?
-            jr      nz, gn_skip     ; Can't capture own piece
+            jr      nz, gnk_skip    ; Can't capture own piece
 
             ; Score the move
             call    score_move      ; A = score for this move
             call    try_move        ; Record if best
 
-gn_skip:    pop     hl
+gnk_skip:   pop     hl
             pop     bc
             inc     hl              ; Next direction
-            djnz    gn_loop
-            jp      think_next
-
-; --- King move generation ---
-; Same as Queen but limited to 1 step in each direction.
-
-gen_king:
-            ld      hl, king_dirs
-            ld      b, 8            ; 8 directions
-gk_loop:    push    bc
-            push    hl
-
-            ld      a, (hl)         ; Direction offset
-            ld      c, a
-            ld      a, e            ; Current square
-            add     a, c
-            cp      64
-            jr      nc, gk_skip     ; Off board
-
-            ld      c, a
-            call    check_col_delta
-            cp      2               ; King moves max 1 column
-            jr      nc, gk_skip
-
-            call    get_board_sq
-            bit     3, a
-            jr      nz, gk_skip     ; Own piece
-
-            call    score_move
-            call    try_move
-
-gk_skip:    pop     hl
-            pop     bc
-            inc     hl
-            djnz    gk_loop
+            djnz    gnk_loop
             jp      think_next
 
 ; --- Sliding piece move generation (Bishop, Rook, Queen) ---
@@ -1010,9 +984,14 @@ gs_skipdir:
 ; --- Index the board: HL = board + A, A = piece there ---
 ; The board-indexing idiom shared by everything. Clobbers DE.
 board_addr:
+            ld      hl, board
+            ; ...and fall through into the generic lookup
+
+; --- Table lookup: A = byte at (HL + A) ---
+; Also leaves HL pointing at the entry. Clobbers DE.
+lut:
             ld      e, a
             ld      d, 0
-            ld      hl, board
             add     hl, de
             ld      a, (hl)
             ret
@@ -1054,11 +1033,8 @@ score_move:
             and     $07             ; Piece type
             push    hl
             push    de
-            ld      e, a
-            ld      d, 0
             ld      hl, piece_vals
-            add     hl, de
-            ld      a, (hl)         ; A = captured piece value
+            call    lut             ; A = captured piece value
             pop     de
             pop     hl
             ret
@@ -1121,9 +1097,10 @@ print_msg:
 ;                    END OF MACHINE CODE
 ; ============================================================================
 ;
-; Total binary size: 983 bytes
+; Total binary size: 918 bytes
 ; (64 bytes board + 7 bytes variables + 38 bytes lookup tables +
-;  ~874 bytes of code and message data)
+;  ~809 bytes of code and message data; 66 bytes of headroom under
+;  the 984-byte build ceiling, banked for future features)
 ;
 ; ============================================================================
 ;
@@ -1142,6 +1119,7 @@ print_msg:
 ;
 ;   - Board stored inside the REM statement (saves 64 bytes!)
 ;   - Direction mask trick for B/R/Q (one loop, 3 piece types)
+;   - ONE loop for Knight and King too (table + column limit in D)
 ;   - Signed arithmetic for move offsets using unsigned ADDs
 ;   - EN PASSANT in ~57 bytes, paid for by deduplicating code paths
 ;     (ep_square reuses the old unused cursor byte at $40C2)
