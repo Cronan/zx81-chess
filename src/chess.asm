@@ -327,23 +327,10 @@ cls_and_draw:
             ; This sets up a fresh display file
             call    ROM_CLS
 
-            ; Get display file address
-            ld      hl, (D_FILE)
-            inc     hl              ; Skip first NEWLINE byte
-
             ; --- Print column header "  A B C D E F G H" ---
-            ld      a, CH_SPACE
-            rst     $10             ; Print space
-            rst     $10             ; Print space
-            ld      b, 8
-            ld      a, CH_A         ; Start with 'A'
-hdr_loop:   push    af
-            rst     $10             ; Print letter
-            ld      a, CH_SPACE
-            rst     $10             ; Print space
-            pop     af
-            inc     a               ; Next letter
-            djnz    hdr_loop
+            ; (The footer reuses print_files below; RST $10 prints via
+            ; the DF_CC system variable, so no display pointer needed.)
+            call    print_files
             ld      a, CH_NEWLINE
             rst     $10             ; Newline
 
@@ -395,19 +382,23 @@ col_loop:
             jr      nz, row_loop
 
             ; --- Print column footer ---
+            ; Fall through into print_files (which returns for us)
+
+; --- Print the file letters line "  A B C D E F G H" ---
+; Used as the header and (by fall-through) the footer of the board.
+print_files:
             ld      a, CH_SPACE
             rst     $10
             rst     $10
             ld      b, 8
             ld      a, CH_A
-ftr_loop:   push    af
+pf_loop:    push    af
             rst     $10
             ld      a, CH_SPACE
             rst     $10
             pop     af
             inc     a
-            djnz    ftr_loop
-
+            djnz    pf_loop
             ret
 
 ; --- Convert piece code to ZX81 display character ---
@@ -470,11 +461,7 @@ get_move_retry:
             ld      (move_from), a
 
             ; Validate: must be a White piece on source square
-            ld      e, a
-            ld      d, 0
-            ld      hl, board
-            add     hl, de
-            ld      a, (hl)
+            call    board_addr      ; A = piece at square A
             and     a               ; Empty?
             jr      z, get_move_retry  ; Yes - try again
             bit     3, a            ; Black piece?
@@ -489,11 +476,7 @@ get_move_retry:
             ld      (move_to), a
 
             ; Validate: destination must not be own White piece
-            ld      e, a
-            ld      d, 0
-            ld      hl, board
-            add     hl, de
-            ld      a, (hl)
+            call    board_addr      ; A = piece at square A
             and     a
             ret     z               ; Empty destination - OK
             bit     3, a            ; Is it Black? (capture)
@@ -578,11 +561,8 @@ ai_make_move:
 ; C = source square, B = destination square
 do_move:
             ; Pick up the piece from source
-            ld      e, c
-            ld      d, 0
-            ld      hl, board
-            add     hl, de
-            ld      a, (hl)         ; A = piece being moved
+            ld      a, c
+            call    board_addr      ; A = piece being moved
             ld      (hl), 0         ; Clear source square
 
             ; Place it on destination
@@ -680,11 +660,7 @@ think_scan:
             push    af              ; Save current square number
 
             ; Get piece at this square
-            ld      e, a
-            ld      d, 0
-            ld      hl, board
-            add     hl, de
-            ld      a, (hl)
+            call    board_addr
 
             ; Is it a Black piece?
             and     a               ; Empty?
@@ -780,19 +756,10 @@ think_next2:
 ; Helper: check if pawn capture is valid
 ; E = source square, C = target square
 check_pawn_cap:
-            ; Verify column changed by exactly 1
-            ld      a, e
-            and     $07             ; Source column
-            ld      b, a
-            ld      a, c
-            and     $07             ; Dest column
-            sub     b               ; Delta (may be negative)
-            jr      z, cpc_bad      ; Same column - not diagonal!
-            jr      nc, cpc_col_pos
-            neg                     ; Make positive
-cpc_col_pos:
-            cp      2
-            jr      nc, cpc_bad     ; Column wrapped around
+            ; Column must change by exactly 1 (diagonal, no edge wrap)
+            call    check_col_delta ; A = |col(C) - col(E)|
+            dec     a
+            jr      nz, cpc_bad     ; 0 = not diagonal, >=2 = wrapped
 
             ; Check target has a White piece (something to capture)
             call    get_board_sq    ; A = piece at target C
@@ -801,18 +768,10 @@ cpc_col_pos:
             bit     3, a            ; Is it Black?
             jr      nz, cpc_bad     ; Own piece - can't capture
 
-            ; Valid capture! Score = captured piece value
-            call    get_board_sq
-            and     $07
-            push    de
-            push    hl
-            ld      e, a
-            ld      d, 0
-            ld      hl, piece_vals
-            add     hl, de
-            ld      a, (hl)
-            pop     hl
-            pop     de
+            ; Valid capture! score_move looks up the captured piece's
+            ; value (target is occupied here, so it never returns the
+            ; non-capture score).
+            call    score_move
             call    try_move
 cpc_bad:    ret
 
@@ -1001,16 +960,23 @@ gs_skipdir:
 ;                   AI HELPER ROUTINES
 ; ============================================================================
 
-; --- Get piece at board square C ---
-; Returns: A = piece code (0 if empty)
-get_board_sq:
-            push    hl
-            push    de
-            ld      e, c
+; --- Index the board: HL = board + A, A = piece there ---
+; The board-indexing idiom shared by everything. Clobbers DE.
+board_addr:
+            ld      e, a
             ld      d, 0
             ld      hl, board
             add     hl, de
             ld      a, (hl)
+            ret
+
+; --- Get piece at board square C ---
+; Returns: A = piece code (0 if empty), all other registers preserved
+get_board_sq:
+            push    hl
+            push    de
+            ld      a, c
+            call    board_addr
             pop     de
             pop     hl
             ret
