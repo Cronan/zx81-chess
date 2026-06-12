@@ -17,7 +17,7 @@
 const fs = require('fs');
 const path = require('path');
 const {
-    BOARD_BASE, BEST_FROM, BEST_TO, FRAMES, ENTRY_POINT,
+    BOARD_BASE, BEST_FROM, BEST_TO, EP_SQUARE, FRAMES, ENTRY_POINT,
     setupEmulator, runUntilIdle, queueKeys, moveToKeys,
 } = require('../play/emu_test_lib');
 
@@ -53,6 +53,7 @@ function emit(game, move, cpu, status) {
         board: boardHex(cpu),
         bestFrom: cpu.rb(BEST_FROM),
         bestTo: cpu.rb(BEST_TO),
+        ep: cpu.rb(EP_SQUARE),
         status,
     }));
 }

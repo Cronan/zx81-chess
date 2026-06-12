@@ -17,19 +17,22 @@
 ;
 ; ============================================================================
 ;
-; MEMORY MAP (1K Configuration):
+; MEMORY MAP:
 ;
 ;   $4000-$407C  System Variables          (125 bytes)
 ;   $407D-$407F  BASIC Line 1 header       (5 bytes: line num + length + REM)
 ;   $4082        Start of REM content      (= start of machine code)
 ;   $4082-$40C1  Board data                (64 bytes, inside REM)
-;   $40C2-$4455  Machine code + data       (~916 bytes)
-;   $4456        NEWLINE (end of REM)      (1 byte)
-;   $4457-$4468  BASIC Line 2             (RAND USR 16514)
-;   $4469-$4481  Display file             (collapsed, ~25 bytes)
-;   $4482+       Stack space
+;   $40C2-$4458  Machine code + data       (~919 bytes)
+;   $4459        NEWLINE (end of REM)      (1 byte)
+;   $445A-$446B  BASIC Line 2             (RAND USR 16514)
+;   $446C-$4485  Display file             (collapsed, ~25 bytes)
+;   $4486+       Stack space
 ;
-;   Total binary (board + code + data): 984 bytes
+;   Total binary (board + code + data): 983 bytes
+;   (The Makefile enforces a hard 984-byte ceiling. Honesty note: the
+;   program has outgrown the true 1K boundary at $43FF - it currently
+;   needs a 2K+/emulated machine. The original 1983 version fitted.)
 ;
 ; ============================================================================
 ;
@@ -113,10 +116,10 @@ ROM_PRINT   EQU     $0010       ; RST $10 - Print character in A
 
 board:      DEFS    64          ; $4082 - $40C1
 
-; --- WORKING VARIABLES (6 bytes) ---
+; --- WORKING VARIABLES (7 bytes) ---
 ; Squeezed in right after the board
 
-cursor:     DEFB    0           ; $40C2 - cursor position (0-63)
+ep_square:  DEFB    $FF         ; $40C2 - en passant target ($FF = none)
 move_from:  DEFB    0           ; $40C3 - source square
 move_to:    DEFB    0           ; $40C4 - destination square
 best_from:  DEFB    0           ; $40C5 - computer's best move source
@@ -298,6 +301,8 @@ ib_br:      ld      a, (de)
             inc     de
             djnz    ib_br
 
+            ; HL now points just past the board = ep_square
+            ld      (hl), $FF       ; No en passant right
             ret
 
 ; ============================================================================
@@ -572,28 +577,64 @@ do_move:
             add     hl, de
             ld      (hl), a         ; Put piece on destination
 
-            ; --- Pawn promotion ---
-            ; If a pawn reaches the far rank, promote to Queen.
-            ; White pawn on rank 8 (index 56-63): promote
-            ; Black pawn on rank 1 (index 0-7): promote
-            ; This is crude but better than nothing!
             and     $07             ; Get piece type
             cp      1               ; Is it a pawn?
-            ret     nz              ; No - done
+            jr      z, dm_pawn
 
-            ; It's a pawn. Check for promotion.
-            ld      a, b            ; A = destination square
-            cp      56              ; >= 56? (rank 8)
-            jr      nc, promote_w
-            cp      8               ; < 8? (rank 1)
-            ret     nc              ; No promotion
-
-            ; Black pawn promotes
-            ld      a, $0D          ; Black Queen ($05 OR $08)
-            ld      (hl), a
+            ; Non-pawn move: the en passant right expires
+            ld      a, $FF
+            ld      (ep_square), a
             ret
 
-promote_w:  ld      a, $05          ; White Queen
+; --- Pawn special handling: en passant + promotion ---
+dm_pawn:
+            ; En passant capture: a pawn landing on the ep square took
+            ; the double-pusher, which sits on the SOURCE rank in the
+            ; DESTINATION file. (Only a diagonal capture can land here:
+            ; the ep square was vacated mid-double-push, and a straight
+            ; push onto it is blocked by the double-pusher itself.)
+            ld      a, (ep_square)
+            cp      b               ; Landed on the ep square?
+            jr      nz, dm_rearm
+            ld      a, c
+            and     $38             ; Source rank...
+            ld      d, a
+            ld      a, b
+            and     $07             ; ...destination file
+            or      d
+            push    hl
+            call    board_addr
+            ld      (hl), 0         ; Remove the captured pawn
+            pop     hl
+
+dm_rearm:
+            ; The old en passant right is spent; a double push grants
+            ; the opponent a fresh one on the square skipped over.
+            ld      a, $FF
+            ld      (ep_square), a
+            ld      a, c
+            sub     b               ; from - to
+            jr      nc, dm_abs
+            neg                     ; Make positive
+dm_abs:     cp      16              ; Moved two ranks?
+            jr      nz, dm_promo
+            ld      a, c
+            add     a, b            ; from + to < 128, so RRA
+            rra                     ; halves it: the skipped square
+            ld      (ep_square), a
+            ret                     ; A double push can't promote
+
+dm_promo:
+            ; --- Pawn promotion ---
+            ; Reaching the far rank promotes to the mover's Queen
+            ; (5 OR side: side = 0 for White, 8 for Black).
+            ld      a, b            ; A = destination square
+            cp      56              ; Rank 8: White promotes
+            jr      nc, dm_crown
+            cp      8               ; Ranks 2-7: nothing to do
+            ret     nc
+dm_crown:   ld      a, (side)
+            or      5               ; Queen of the moving side
             ld      (hl), a
             ret
 
@@ -761,7 +802,14 @@ check_pawn_cap:
             dec     a
             jr      nz, cpc_bad     ; 0 = not diagonal, >=2 = wrapped
 
-            ; Check target has a White piece (something to capture)
+            ; Capturing onto the en passant square is valid even though
+            ; the square is empty (score_move scores an empty square as
+            ; 1, which is exactly a pawn's value).
+            ld      a, (ep_square)
+            cp      c
+            jr      z, cpc_take
+
+            ; Otherwise the target must hold a White piece to capture
             call    get_board_sq    ; A = piece at target C
             and     a
             jr      z, cpc_bad      ; Empty - pawns can't "move" diagonally
@@ -769,9 +817,8 @@ check_pawn_cap:
             jr      nz, cpc_bad     ; Own piece - can't capture
 
             ; Valid capture! score_move looks up the captured piece's
-            ; value (target is occupied here, so it never returns the
-            ; non-capture score).
-            call    score_move
+            ; value (or 1 for the en passant pawn).
+cpc_take:   call    score_move
             call    try_move
 cpc_bad:    ret
 
@@ -1074,16 +1121,15 @@ print_msg:
 ;                    END OF MACHINE CODE
 ; ============================================================================
 ;
-; Total binary size: 984 bytes
+; Total binary size: 983 bytes
 ; (64 bytes board + 7 bytes variables + 38 bytes lookup tables +
-;  ~875 bytes of code and message data)
+;  ~874 bytes of code and message data)
 ;
 ; ============================================================================
 ;
 ; KNOWN LIMITATIONS (features I ran out of bytes for):
 ;
 ;   - No castling (would cost ~40 bytes)
-;   - No en passant (would cost ~30 bytes)
 ;   - No check/checkmate detection (game ends on king capture)
 ;   - No stalemate detection
 ;   - No move legality beyond basic validation
@@ -1097,10 +1143,11 @@ print_msg:
 ;   - Board stored inside the REM statement (saves 64 bytes!)
 ;   - Direction mask trick for B/R/Q (one loop, 3 piece types)
 ;   - Signed arithmetic for move offsets using unsigned ADDs
-;   - Pawn promotion in just 12 bytes
+;   - EN PASSANT in ~57 bytes, paid for by deduplicating code paths
+;     (ep_square reuses the old unused cursor byte at $40C2)
+;   - Promotion crowns 5 OR side - one path for both colours
 ;   - Centre column bonus in try_move (prefers d/e files, 8 bytes)
 ;   - Random tie-breaking via FRAMES counter (no more a-file bias)
-;   - The whole thing fits in 1K!
 ;
 ; ============================================================================
 ;

@@ -27,6 +27,7 @@ sys.path.insert(0, ROOT)
 from test_harness import Z80, setup_zx81_memory, encode_key  # noqa: E402
 
 BOARD = 0x4082
+EP_SQUARE = 0x40C2
 BEST_FROM = 0x40C5
 BEST_TO = 0x40C6
 FRAMES = 0x4034
@@ -74,6 +75,7 @@ class Session:
             "board": "".join(f"{self.cpu.rb(BOARD + i):02x}" for i in range(64)),
             "bestFrom": self.cpu.rb(BEST_FROM),
             "bestTo": self.cpu.rb(BEST_TO),
+            "ep": self.cpu.rb(EP_SQUARE),
             "status": status,
         }
 
@@ -133,7 +135,7 @@ def main():
     for py, js in zip(py_records, js_records):
         if py != js:
             print(f"FAIL: divergence in game '{py['game']}' after move '{py['move']}'")
-            for key in ("game", "move", "status", "bestFrom", "bestTo"):
+            for key in ("game", "move", "status", "bestFrom", "bestTo", "ep"):
                 if py[key] != js[key]:
                     print(f"  {key}: python={py[key]!r} js={js[key]!r}")
             if py["board"] != js["board"]:

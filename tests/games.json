@@ -4,6 +4,7 @@
     "opening": ["e2e4", "d2d4", "g1f3", "b1c3", "f1c4", "g2f3", "c1f4", "a2a3", "h2h3", "b2b3"],
     "captures": ["e2e4", "d2d4", "g1f3", "b1c3", "f1c4", "g2f3", "c4e6", "d1d3", "e6f7", "d3h7"],
     "promotion": ["a2a7", "a7b8", "d1d3", "h2h4"],
+    "enpassant": ["e2e4", "d2d4", "c1e3", "f2f4", "g2g4", "h2h4"],
     "gameover": ["e2e4", "d2e8"]
   }
 }

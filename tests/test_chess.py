@@ -14,7 +14,7 @@ from test_harness import Z80, setup_zx81_memory, print_board_from_memory
 
 # Memory addresses (must match chess.asm)
 BOARD = 0x4082
-CURSOR = 0x40C2
+EP_SQUARE = 0x40C2
 MOVE_FROM = 0x40C3
 MOVE_TO = 0x40C4
 BEST_FROM = 0x40C5
@@ -696,11 +696,14 @@ def test_pawn_promotion():
     piece = t.get_piece(cpu, e8)
     assert piece == W_QUEEN, f"e8 should have white queen after promotion, got {piece}"
 
-    # Test black pawn promotion
+    # Test black pawn promotion. Promotion crowns the queen of the
+    # moving side, so model the game loop setting side=8 for Black
+    # (in real play a black move only ever happens with side=8).
     t.clear_board(cpu)
     d2 = t.sq('d', 2)
     d1 = t.sq('d', 1)
     t.set_piece(cpu, d2, B_PAWN)
+    cpu.wb(SIDE, 8)
 
     cpu.wb(MOVE_FROM, d2)
     cpu.wb(MOVE_TO, d1)
@@ -1308,6 +1311,167 @@ def test_slider_direction_masks():
     print("  PASS: slider direction masks (bishop diagonal, rook orthogonal)")
 
 
+def _find_make_move(t, cpu):
+    """make_move is the target of the 4th CALL from the entry point."""
+    call_count = 0
+    for addr in range(t.start_addr, t.start_addr + 60):
+        if cpu.rb(addr) == 0xCD:
+            call_count += 1
+            if call_count == 4:
+                return cpu.rb(addr + 1) | (cpu.rb(addr + 2) << 8)
+    raise RuntimeError("Could not find make_move")
+
+
+def test_en_passant_player_capture():
+    """White captures en passant after Black's double push."""
+    t = ChessTest()
+    cpu = t.setup_cpu()
+    make_move = _find_make_move(t, cpu)
+
+    t.clear_board(cpu)
+    d7, d6, d5, e5 = t.sq('d', 7), t.sq('d', 6), t.sq('d', 5), t.sq('e', 5)
+    t.set_piece(cpu, d7, B_PAWN)
+    t.set_piece(cpu, e5, W_PAWN)
+    cpu.sp = 0x7FFF
+
+    # Black double-pushes d7-d5, granting White the d6 ep square
+    cpu.wb(SIDE, 8)
+    cpu.wb(MOVE_FROM, d7)
+    cpu.wb(MOVE_TO, d5)
+    t.call_routine(cpu, make_move)
+    assert cpu.rb(EP_SQUARE) == d6, \
+        f"ep square should be d6 ({d6}), got {cpu.rb(EP_SQUARE)}"
+
+    # White captures en passant: e5xd6
+    cpu.wb(SIDE, 0)
+    cpu.wb(MOVE_FROM, e5)
+    cpu.wb(MOVE_TO, d6)
+    t.call_routine(cpu, make_move)
+
+    assert t.get_piece(cpu, d6) == W_PAWN, "white pawn should land on d6"
+    assert t.get_piece(cpu, d5) == EMPTY, \
+        "black d5 pawn should be captured en passant"
+    assert t.get_piece(cpu, e5) == EMPTY, "e5 should be vacated"
+    assert cpu.rb(EP_SQUARE) == 0xFF, "ep right should be spent"
+
+    print("  PASS: en passant capture by player")
+
+
+def test_en_passant_ai_capture():
+    """The AI finds and executes an en passant capture."""
+    t = ChessTest()
+    cpu = t.setup_cpu()
+    make_move = _find_make_move(t, cpu)
+    think_addr = t.find_think(cpu)
+
+    t.clear_board(cpu)
+    a4, a3, b2, b4, b3 = (t.sq('a', 4), t.sq('a', 3), t.sq('b', 2),
+                          t.sq('b', 4), t.sq('b', 3))
+    t.set_piece(cpu, a4, B_PAWN)    # Black pawn ready to capture ep
+    t.set_piece(cpu, a3, W_KNIGHT)  # Blocks a4-a3 so ep is the only move
+    t.set_piece(cpu, b2, W_PAWN)
+    cpu.sp = 0x7FFF
+
+    # White double-pushes b2-b4 past the black pawn
+    cpu.wb(SIDE, 0)
+    cpu.wb(MOVE_FROM, b2)
+    cpu.wb(MOVE_TO, b4)
+    t.call_routine(cpu, make_move)
+    assert cpu.rb(EP_SQUARE) == b3, \
+        f"ep square should be b3 ({b3}), got {cpu.rb(EP_SQUARE)}"
+
+    # Black thinks: a4xb3 en passant is its only legal move
+    t.call_routine(cpu, think_addr)
+    assert cpu.rb(BEST_FROM) == a4 and cpu.rb(BEST_TO) == b3, \
+        (f"AI should choose a4xb3 ep ({a4}->{b3}), "
+         f"got {cpu.rb(BEST_FROM)}->{cpu.rb(BEST_TO)}")
+
+    # Execute it (same do_move path ai_make_move uses)
+    cpu.wb(SIDE, 8)
+    cpu.wb(MOVE_FROM, a4)
+    cpu.wb(MOVE_TO, b3)
+    t.call_routine(cpu, make_move)
+
+    assert t.get_piece(cpu, b3) == B_PAWN, "black pawn should land on b3"
+    assert t.get_piece(cpu, b4) == EMPTY, \
+        "white b4 pawn should be captured en passant"
+    assert t.get_piece(cpu, a4) == EMPTY, "a4 should be vacated"
+
+    print("  PASS: en passant capture by AI")
+
+
+def test_en_passant_expires():
+    """The en passant right lasts exactly one ply."""
+    t = ChessTest()
+    cpu = t.setup_cpu()
+    make_move = _find_make_move(t, cpu)
+
+    t.clear_board(cpu)
+    d7, d6, d5, e5, h2, h3 = (t.sq('d', 7), t.sq('d', 6), t.sq('d', 5),
+                              t.sq('e', 5), t.sq('h', 2), t.sq('h', 3))
+    t.set_piece(cpu, d7, B_PAWN)
+    t.set_piece(cpu, e5, W_PAWN)
+    t.set_piece(cpu, h2, W_PAWN)
+    cpu.sp = 0x7FFF
+
+    # Black double-pushes d7-d5
+    cpu.wb(SIDE, 8)
+    cpu.wb(MOVE_FROM, d7)
+    cpu.wb(MOVE_TO, d5)
+    t.call_routine(cpu, make_move)
+    assert cpu.rb(EP_SQUARE) == d6
+
+    # White plays something else: the right expires
+    cpu.wb(SIDE, 0)
+    cpu.wb(MOVE_FROM, h2)
+    cpu.wb(MOVE_TO, h3)
+    t.call_routine(cpu, make_move)
+    assert cpu.rb(EP_SQUARE) == 0xFF, "ep right should expire after one ply"
+
+    # A later e5-d6 is just a diagonal move (honour system), NOT ep:
+    # the d5 pawn must survive
+    cpu.wb(MOVE_FROM, e5)
+    cpu.wb(MOVE_TO, d6)
+    t.call_routine(cpu, make_move)
+    assert t.get_piece(cpu, d5) == B_PAWN, \
+        "d5 pawn must NOT be removed once the ep right has expired"
+
+    print("  PASS: en passant right expires after one ply")
+
+
+def test_en_passant_state():
+    """ep_square is set only by double pushes and reset by init_board."""
+    t = ChessTest()
+    cpu = t.setup_cpu()
+    make_move = _find_make_move(t, cpu)
+    init_board = t.find_routine(cpu, 0)  # 1st CALL from entry
+    cpu.sp = 0x7FFF
+
+    # Fresh binary image has no ep right
+    assert cpu.rb(EP_SQUARE) == 0xFF, "ep square should load as $FF"
+
+    # init_board resets a stale value
+    cpu.wb(EP_SQUARE, 20)
+    t.call_routine(cpu, init_board)
+    assert cpu.rb(EP_SQUARE) == 0xFF, "init_board should reset ep square"
+
+    # A single pawn push does not grant an ep right
+    cpu.wb(SIDE, 0)
+    cpu.wb(MOVE_FROM, t.sq('e', 2))
+    cpu.wb(MOVE_TO, t.sq('e', 3))
+    t.call_routine(cpu, make_move)
+    assert cpu.rb(EP_SQUARE) == 0xFF, "single push must not set ep square"
+
+    # A non-pawn move clears any pending right
+    cpu.wb(EP_SQUARE, 20)
+    cpu.wb(MOVE_FROM, t.sq('b', 1))
+    cpu.wb(MOVE_TO, t.sq('c', 3))
+    t.call_routine(cpu, make_move)
+    assert cpu.rb(EP_SQUARE) == 0xFF, "non-pawn move must clear ep square"
+
+    print("  PASS: en passant state transitions")
+
+
 def run_all_tests():
     """Run all tests and report results."""
     print("\n=== ZX81 Chess Test Suite ===\n")
@@ -1350,6 +1514,11 @@ def run_all_tests():
         ("Game Over White Wins", test_game_over_white_wins),
         ("Game Over Black Wins", test_game_over_black_wins),
         ("Slider Direction Masks", test_slider_direction_masks),
+        # --- En passant ---
+        ("En Passant (player capture)", test_en_passant_player_capture),
+        ("En Passant (AI capture)", test_en_passant_ai_capture),
+        ("En Passant (expires)", test_en_passant_expires),
+        ("En Passant (state transitions)", test_en_passant_state),
     ]
 
     passed = 0

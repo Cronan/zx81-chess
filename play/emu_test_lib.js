@@ -36,6 +36,7 @@ const ZX_KEYS = {
 
 const BOARD_BASE = 0x4082;
 const ENTRY_POINT = 0x40EF;
+const EP_SQUARE = 0x40C2;
 const BEST_FROM = 0x40C5;
 const BEST_TO = 0x40C6;
 const FRAMES = 0x4034;
@@ -151,6 +152,6 @@ function moveToKeys(move) {
 
 module.exports = {
     Z80, ZX81,
-    ZX_KEYS, BOARD_BASE, ENTRY_POINT, BEST_FROM, BEST_TO, FRAMES,
+    ZX_KEYS, BOARD_BASE, ENTRY_POINT, EP_SQUARE, BEST_FROM, BEST_TO, FRAMES,
     setupEmulator, getPiece, boardToString, runUntilIdle, queueKeys, moveToKeys,
 };
