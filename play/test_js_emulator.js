@@ -5,140 +5,14 @@
  * appear in the JS runtime (not the Python test harness).
  */
 
-// Load the Z80 emulator
-const fs = require('fs');
-const vm = require('vm');
-
-// Create a minimal browser-like context
-const context = {
-    window: {},
-    document: { getElementById: () => ({ textContent: '', getContext: () => ({
-        fillStyle: '', fillRect: () => {},
-    }) }) },
-    navigator: {},
-    console: console,
-};
-vm.createContext(context);
-
-// Load z80.js and zx81.js
-const z80Code = fs.readFileSync(__dirname + '/z80.js', 'utf8');
-const zx81Code = fs.readFileSync(__dirname + '/zx81.js', 'utf8');
-vm.runInContext(z80Code, context);
-vm.runInContext(zx81Code, context);
-
-const Z80 = context.window.Z80;
-const ZX81 = context.window.ZX81;
+const {
+    Z80, ZX_KEYS, BOARD_BASE, ENTRY_POINT,
+    setupEmulator, getPiece, boardToString, runUntilIdle, queueKeys,
+} = require('./emu_test_lib');
 
 // ZX81 key codes
-const ZX_A = 0x26, ZX_B = 0x27, ZX_C = 0x28, ZX_D = 0x29, ZX_E = 0x2A;
-const ZX_F = 0x2B, ZX_G = 0x2C, ZX_H = 0x2D;
-const ZX_1 = 0x1D, ZX_2 = 0x1E, ZX_3 = 0x1F, ZX_4 = 0x20;
-const ZX_5 = 0x21, ZX_6 = 0x22, ZX_7 = 0x23, ZX_8 = 0x24;
-
-const BOARD_BASE = 0x4082;
-const ENTRY_POINT = 0x40EF;
-
-function setupEmulator() {
-    const cpu = new Z80();
-
-    // Create a minimal canvas mock
-    const mockCanvas = {
-        width: 768, height: 576,
-        getContext: () => ({
-            fillStyle: '',
-            fillRect: () => {},
-        }),
-    };
-
-    const zx81 = new ZX81(cpu, mockCanvas);
-    zx81.initSystemVars();
-
-    // Load chess.p
-    const pData = fs.readFileSync(__dirname + '/../chess.p');
-    zx81.loadPFile(pData);
-
-    return { cpu, zx81 };
-}
-
-function getPiece(cpu, file, rank) {
-    const idx = (rank - 1) * 8 + (file.charCodeAt(0) - 'a'.charCodeAt(0));
-    return cpu.rb(BOARD_BASE + idx);
-}
-
-function boardToString(cpu) {
-    const pieceChars = { 0: '.', 1: 'P', 2: 'N', 3: 'B', 4: 'R', 5: 'Q', 6: 'K' };
-    let result = '';
-    for (let rank = 7; rank >= 0; rank--) {
-        result += (rank + 1) + '|';
-        for (let file = 0; file < 8; file++) {
-            const piece = cpu.rb(BOARD_BASE + rank * 8 + file);
-            const ptype = piece & 0x07;
-            const isBlack = (piece & 0x08) !== 0;
-            let ch = pieceChars[ptype] || '?';
-            if (isBlack) ch = ch.toLowerCase();
-            result += ch;
-        }
-        result += '\n';
-    }
-    result += '  abcdefgh';
-    return result;
-}
-
-/**
- * Run frames exactly like the browser does.
- * Returns when HALT is hit with no keys, or after maxFrames.
- */
-function runUntilIdle(cpu, zx81, maxFrames = 5000) {
-    let frames = 0;
-    let consecutiveIdleHalts = 0;
-
-    while (frames < maxFrames) {
-        let hitHalt = false;
-
-        for (let i = 0; i < 100000; i++) {
-            if (cpu.pc === 0) return { status: 'returned_to_zero', frames };
-
-            const result = cpu.step();
-
-            if (result === 'halt') {
-                const key = zx81.getKey();
-                if (key !== 0xFF) {
-                    cpu.ww(0x4025, key);
-                    consecutiveIdleHalts = 0;
-                } else {
-                    cpu.ww(0x4025, 0xFFFF);
-                }
-                cpu.halted = false;
-                hitHalt = true;
-                break;
-            }
-
-            if (result === 'error') {
-                return { status: 'error', frames, pc: cpu.pc };
-            }
-        }
-
-        frames++;
-
-        if (hitHalt && zx81.keyBuffer.length === 0) {
-            consecutiveIdleHalts++;
-            // If we've had 3 consecutive idle HALTs, the game is waiting for input
-            if (consecutiveIdleHalts >= 3) {
-                return { status: 'idle', frames };
-            }
-        } else {
-            consecutiveIdleHalts = 0;
-        }
-    }
-
-    return { status: 'timeout', frames };
-}
-
-function queueKeys(zx81, keys) {
-    for (const key of keys) {
-        zx81.keyBuffer.push(key);
-    }
-}
+const ZX_A = ZX_KEYS.a, ZX_D = ZX_KEYS.d, ZX_E = ZX_KEYS.e, ZX_F = ZX_KEYS.f, ZX_G = ZX_KEYS.g;
+const ZX_1 = ZX_KEYS[1], ZX_2 = ZX_KEYS[2], ZX_3 = ZX_KEYS[3], ZX_4 = ZX_KEYS[4];
 
 // ============ TESTS ============
 
@@ -369,6 +243,27 @@ console.log('\n=== Test 6: clearDisplay writes 0x76 row markers ===');
 
     if (ok) {
         console.log('  clearDisplay correctly writes all 0x76 row markers');
+        passed++;
+    }
+}
+
+// --- Test 7: tickFrames decrements FRAMES and wraps ---
+console.log('\n=== Test 7: tickFrames decrements FRAMES with 16-bit wrap ===');
+{
+    const { cpu, zx81 } = setupEmulator();
+
+    cpu.ww(0x4034, 0x8000);
+    zx81.tickFrames();
+    let ok = assert(cpu.rw(0x4034) === 0x7FFF,
+        `FRAMES should go 0x8000 -> 0x7FFF, got 0x${cpu.rw(0x4034).toString(16)}`);
+
+    cpu.ww(0x4034, 0x0000);
+    zx81.tickFrames();
+    if (!assert(cpu.rw(0x4034) === 0xFFFF,
+        `FRAMES should wrap 0x0000 -> 0xFFFF, got 0x${cpu.rw(0x4034).toString(16)}`)) ok = false;
+
+    if (ok) {
+        console.log('  tickFrames decrements and wraps correctly');
         passed++;
     }
 }

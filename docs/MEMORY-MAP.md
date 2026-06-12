@@ -7,7 +7,15 @@
 
 # ZX81 1K Chess: Complete Memory Map
 
-Every one of the 1024 bytes, accounted for.
+Every byte, accounted for.
+
+> **Honesty note:** the program has outgrown the true 1K boundary. The
+> REM statement now ends at $4459, past the unexpanded machine's RAM
+> top of $43FF, and the emulators run the stack at $7FFF. The original
+> 1983 version fitted in 1K; this rewrite traded that purity for
+> features (win messages, centre bonus, random tie-breaking, en
+> passant). The Makefile enforces a hard 984-byte binary ceiling so it
+> can't creep further.
 
 ---
 
@@ -25,15 +33,15 @@ $40D0 - $40D6    7       Piece values table
 $40D7 - $40DE    8       King/Queen direction table
 $40DF - $40E6    8       Knight direction table
 $40E7 - $40EE    8       Initial rank data
-$40EF - $4325    567     Machine code (executable)
-$4326 - $4329    4       Win/Lose message data
-$4329            1       NEWLINE (end of REM)
-$432A - $433B    18      BASIC Line 2 (RAND USR)
-$433C - $4354    25      Display file (collapsed)
-$4355 - $43FF    171     Stack space
-                 ----
-                 1024    TOTAL
+$40EF - $4458    874     Machine code + message data (executable)
+$4459            1       NEWLINE (end of REM)
+$445A - $446B    18      BASIC Line 2 (RAND USR)
+$446C - $4485    26      Display file (collapsed)
+$4486+                   E_LINE / free RAM / stack
 ```
+
+The binary (`chess.bin`) is the REM content: board + variables +
+tables + code = 64 + 7 + 38 + 874 = **983 bytes** (ceiling: 984).
 
 ---
 
@@ -47,14 +55,14 @@ These 125 bytes are managed by the ZX81 operating system. We read some (D_FILE, 
 $4000  ERR_NR    DB  $FF        Error number - 1 ($FF = no error)
 $4001  FLAGS     DB  %01000000  Bit flags (bit 6 usually set)
 $4002  ERR_SP    DW  $xxxx      Error stack pointer
-$4004  RAMTOP    DW  $43FF      Top of RAM (1K = $43FF)
+$4004  RAMTOP    DW  $xxxx      Top of RAM ($43FF on 1K hardware)
 $4006  MODE      DB  $00        Cursor mode
 $4007  PPC       DW  $0000      Current BASIC line
 $4009  VERSN     DB  $00        BASIC version
 $400A  E_PPC     DW  $0000      Edit line number
-$400C  D_FILE    DW  $433C      Address of display file <<<
-$400E  DF_CC     DW  $433D      Print position
-$4010  VARS      DW  $433C      Variables area address
+$400C  D_FILE    DW  $446C      Address of display file <<<
+$400E  DF_CC     DW  $446D      Print position
+$4010  VARS      DW  $4485      Variables area address
 $4012  DEST      DW  $0000      Variable destination
 $4014  E_LINE    DW  $xxxx      Edit line address
 $4016  CH_ADD    DW  $xxxx      Character address
@@ -89,13 +97,13 @@ $407B  not used  DW  $0000
 
 ```
 $407D  DW  $0001        Line number: 1 (stored big-endian!)
-$407F  DW  $02A3        Line length: 675 (672 content + REM + NL)
+$407F  DW  $03D9        Line length: 985 (REM + 983 content + NL)
 $4081  DB  $EA          REM token
 ```
 
-Note: Line numbers are stored **big-endian** (unusual for Z80!), so line 1 is stored as $00, $01. The line length includes the REM token byte and the trailing NEWLINE, so 672 + 1 + 2 = 675 bytes. Wait - actually the length field counts from after the length field to the NEWLINE inclusive, so it's 672 (content) + 1 (REM token) + 1 (NEWLINE) = 674 bytes. Let me correct that:
+Note: Line numbers are stored **big-endian** (unusual for Z80!), so line 1 is stored as $00, $01.
 
-Actually, the ZX81 BASIC line format is:
+The ZX81 BASIC line format is:
 ```
 Byte 0-1:  Line number (big-endian)
 Byte 2-3:  Length of rest of line (little-endian)
@@ -104,7 +112,7 @@ Byte 5+:   Content
 Last byte: NEWLINE ($76)
 ```
 
-The length field = everything from byte 4 to end including NEWLINE = 1 + 672 + 1 = 674 = $02A2.
+The length field = everything from byte 4 to end including NEWLINE = 1 + 983 + 1 = 985 = $03D9.
 
 ### Board Data ($4082 - $40C1)
 
@@ -156,7 +164,7 @@ Visual representation:
 ### Working Variables ($40C2 - $40C8)
 
 ```
-$40C2  cursor      DB  0     Cursor position (0-63)
+$40C2  ep_square   DB  $FF   En passant target square ($FF = none)
 $40C3  move_from   DB  0     Player's source square
 $40C4  move_to     DB  0     Player's destination square
 $40C5  best_from   DB  0     Computer's best source
@@ -164,6 +172,11 @@ $40C6  best_to     DB  0     Computer's best destination
 $40C7  best_score  DB  0     Computer's best score
 $40C8  side        DB  0     Current side (0=White, 8=Black)
 ```
+
+`ep_square` reuses the byte originally reserved for a cursor feature
+that never happened. It holds the square a double-pushed pawn skipped
+over, for exactly one ply: `do_move` sets it on any double pawn push
+and resets it to $FF on every other move.
 
 ### Lookup Tables ($40C9 - $40EE)
 
@@ -217,54 +230,80 @@ Initial Rank ($40E7 - $40EE):
   $40EE  $04  (Rook)
 ```
 
-### Machine Code ($40EF - $4325)
+### Machine Code ($40EF - $4458)
 
-567 bytes of executable Z80 machine code. See `chess.asm` for the full disassembly and `ANNOTATED.md` for the instruction-by-instruction walkthrough.
+874 bytes of executable Z80 machine code (including 14 bytes of
+message data at $412B - $4138). Routine entry points in the current
+build:
 
-### Message Data ($4326 - $4329)
+```
+$40EF  start            $4294  check_kings
+$40F5  game_loop        $42AA  think
+$412B  msg_win/msg_lose $42DF  gen_pawn
+$4139  init_board       $431C  check_pawn_cap
+$4174  cls_and_draw     $4339  gen_knight
+$41AE  print_files      $4365  gen_king
+$41C0  get_piece_char   $4391  gen_slider
+$41D8  get_move         $43F0  board_addr
+$4201  get_square       $43F9  get_board_sq
+$421E  wait_key         $4402  check_col_delta
+$422E  make_move        $4411  score_move
+$4238  ai_make_move     $4429  try_move
+$4240  do_move          $4451  print_msg
+```
+
+See `chess.asm` for the full source and `ANNOTATED.md` for the
+instruction-by-instruction walkthrough.
+
+### Message Data ($412B - $4138)
 
 ```
 "YOU WIN":  $3E $34 $3A $00 $3C $2E $33 $FF
 "I WIN":   $2E $00 $3C $2E $33 $FF
 ```
 
-### End of REM / BASIC Line 2 ($4329 - $433B)
+### End of REM / BASIC Line 2 ($4459 - $446B)
 
 ```
-$4329  $76          NEWLINE (end of line 1 / REM statement)
+$4459  $76          NEWLINE (end of line 1 / REM statement)
 
-$432A  $00 $02      Line number: 2
-$432C  $0E $00      Length: 14 bytes
-$432E  $F1          RAND token
-$432F  $D4          USR token
-$4330  ...          Number encoding for 16514
-$433B  $76          NEWLINE (end of line 2)
+$445A  $00 $02      Line number: 2
+$445C  $0E $00      Length: 14 bytes
+$445E  $F1          RAND token
+$445F  $D4          USR token
+$4460  ...          Number encoding for 16514
+$446B  $76          NEWLINE (end of line 2)
 ```
 
 Note: ZX81 BASIC stores numbers in a special format: the ASCII digits followed by a 5-byte floating-point representation. "16514" takes about 10 bytes in this encoding.
 
-### Display File ($433C - $4354)
+### Display File ($446C - $4485)
 
-In collapsed (1K) mode, the display file starts as just 25 NEWLINE bytes:
+In collapsed mode, the display file starts as just 25 NEWLINE bytes:
 
 ```
-$433C  $76          Line 0  (top of screen)
-$433D  $76          Line 1
-$433E  $76          Line 2
+$446C  $76          Line 0  (top of screen)
+$446D  $76          Line 1
+$446E  $76          Line 2
 ...
-$4354  $76          Line 24 (bottom of screen)
+$4485  $76          Line 24 (bottom of screen)
 ```
 
 When the program draws the chess board using RST $10 (print character), the display file automatically expands. Each character printed on a previously empty line causes the line to grow. The system variables D_FILE, VARS, E_LINE, etc., are adjusted automatically by the ROM print routine.
 
 **During gameplay**, the display file grows to approximately 200 bytes (10 lines of board display at ~20 chars each). This is why we need the stack space below to shrink correspondingly.
 
-### Stack Space ($4355 - $43FF)
+### Stack Space
+
+On the original 1K plan the stack lived between the display file and
+RAMTOP at $43FF. The program no longer fits under $43FF, so both
+emulators (Python harness and JS browser emulator) set **SP = $7FFF**
+- comfortably above everything. On real hardware with a RAM pack, the
+ROM sets SP from RAMTOP as usual.
 
 ```
-$43FF  <-- Stack pointer starts here (top of RAM)
+$7FFF  <-- Stack pointer starts here (in the emulators)
            Stack grows DOWNWARD
-$4355  <-- Lowest safe stack address (approximate)
 ```
 
 The stack is used for:
@@ -284,39 +323,37 @@ game_loop
 
 Plus any PUSH/POP within those routines (up to ~8 more bytes).
 
-Total worst-case stack usage: ~20-30 bytes. We have 171 bytes of stack space, which is plenty. The extra space acts as a safety margin for when the display file expands during board rendering.
+Total worst-case stack usage: ~20-30 bytes.
 
 ---
 
 ## Memory Usage by Category
 
 ```
-Category               Bytes    Percentage
----------------------  -----    ----------
-System variables       125      12.2%
-BASIC overhead         24       2.3%
-Board data             64       6.3%
-Working variables      7        0.7%
-Lookup tables          38       3.7%
-Machine code           567      55.4%
-Message data           14       1.4%
-Display file           25       2.4%
-Stack space            171      16.7%
-TOTAL (incl. margin)   1024     100.0%  (actually ~1016 used)
-
-Actually used:         ~1016    99.2%
-Free:                  ~8       0.8%
+Category               Bytes
+---------------------  -----
+System variables       125
+BASIC overhead         24      (line 1 header + line 2 + NEWLINEs)
+Board data             64
+Working variables      7
+Lookup tables          38
+Machine code           860
+Message data           14
+Display file           26
+                       ----
+Through display file:  1158    ($4000 - $4485)
 ```
 
-Eight bytes free. In a 1K program, that's practically an ocean.
+The binary itself: 983 of a hard 984-byte ceiling. One byte free.
+In this program, that's practically an ocean.
 
 ---
 
 ```
-$4000 ========================= $43FF
-|SYS|BAS| BOARD |V| TBL | CODE >>>>>>>>>>>>>>>>>>>|B|DISP|STACK|
-|VAR|HDR| 64 B  | | 38B | 567 bytes of pure Z80   |2|FILE|grows|
-|125| 5 |       |7|     | machine code brilliance  |18| 25 |<----|
-================================================================
-              1024 bytes. Not one wasted.
+$4000 ============================== $4485
+|SYS|BAS| BOARD |V| TBL | CODE >>>>>>>>>>>>>>>>>>>>>>>|B|DISP|
+|VAR|HDR| 64 B  | | 38B | 874 bytes of pure Z80       |2|FILE|
+|125| 5 |       |7|     | machine code brilliance      |18| 26 |
+==============================================================
+        983 binary bytes. Not one wasted. (Ceiling: 984.)
 ```

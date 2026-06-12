@@ -17,18 +17,32 @@ SRC = src/chess.asm
 BIN = chess.bin
 PFILE = chess.p
 
-.PHONY: all build test clean
+# Hard ceiling for the assembled binary. The game must never grow
+# past this; free bytes elsewhere before adding anything new.
+MAXSIZE ?= 984
+
+.PHONY: all build test diff-test clean
 
 all: build test
 
-build: $(PFILE)
+build: $(PFILE) hexdump.txt
 
 $(BIN): $(SRC)
 	$(ASM) --bin $(SRC) $(BIN)
-	@echo "Assembled: $$(wc -c < $(BIN)) bytes"
+	@actual=$$(wc -c < $(BIN)); \
+	echo "Assembled: $$actual bytes (limit $(MAXSIZE))"; \
+	if [ $$actual -gt $(MAXSIZE) ]; then \
+		echo "FAIL: $(BIN) is $$actual bytes, exceeds $(MAXSIZE)-byte limit"; \
+		rm -f $(BIN); \
+		exit 1; \
+	fi
 
 $(PFILE): $(BIN) tools/make_p_file.py
 	$(PYTHON) tools/make_p_file.py $(BIN) $(PFILE)
+
+# hexdump.txt is generated - never edit it by hand
+hexdump.txt: $(BIN) tools/make_hexdump.py
+	$(PYTHON) tools/make_hexdump.py $(BIN) hexdump.txt
 
 test: $(PFILE)
 	@echo "=== Basic Tests ==="
@@ -39,6 +53,12 @@ test: $(PFILE)
 	@echo ""
 	@echo "=== JS Emulator Tests ==="
 	node play/test_js_emulator.js
+	@echo ""
+	@echo "=== Cross-Emulator Differential Tests ==="
+	$(PYTHON) tools/diff_test.py
+
+diff-test: $(PFILE)
+	$(PYTHON) tools/diff_test.py
 
 clean:
 	rm -f $(BIN) $(PFILE)

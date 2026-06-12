@@ -121,6 +121,16 @@ class ZX81 {
         return this.keyBuffer.length > 0 ? this.keyBuffer.shift() : 0xFF;
     }
 
+    // Decrement the FRAMES system variable ($4034), as the real ZX81
+    // does every TV frame (it counts DOWN). The chess AI reads bit 0
+    // of FRAMES as a coin flip to break ties between equal moves, so
+    // without this tick the browser game was fully deterministic.
+    // Only the browser loop calls this - the Node/Python test
+    // harnesses pin FRAMES instead, keeping tests reproducible.
+    tickFrames() {
+        this.cpu.ww(0x4034, (this.cpu.rw(0x4034) - 1) & 0xFFFF);
+    }
+
     handleRomCall(addr) {
         if (addr === 0x0A2A) { // ROM_CLS
             this.clearDisplay();

@@ -106,13 +106,13 @@ If you have a `.P` file (the ZX81's native tape format):
 
 For the true 1983 experience, type the program in from scratch:
 
-1. Open the emulator, set to 1K RAM
+1. Open the emulator with a RAM pack configured (the current build has
+   outgrown the unexpanded 1K machine - see the README's honesty note)
 2. You'll see the `K` cursor (the ZX81 is in keyword mode)
 3. Type line 1:
    - Press `E` for REM (in keyword mode, E = REM)
    - Press NEWLINE
-   - Now type 672 space characters after the REM
-   - (Or use a shorter REM and POKE the rest - see loader.bas)
+   - Now type 983 space characters after the REM
 
 4. Type line 2:
    - Type `2` (line number)
@@ -122,9 +122,11 @@ For the true 1983 experience, type the program in from scratch:
    - Press NEWLINE
 
 5. Now POKE in the machine code:
-   - Type each POKE command from the listing
+   - Type each POKE command, reading the bytes from hexdump.txt
+     (regenerated from chess.bin on every build - the loader.bas
+     listing is historical and stale)
    - Example: `POKE 16585,0` then NEWLINE
-   - Repeat for all 672 bytes...
+   - Repeat for all 983 bytes...
    - (This is why God invented tape recorders)
 
 6. When done:
@@ -204,6 +206,30 @@ Or if you're trying to run the loader (which needs 16K), make sure the emulator 
 ### "Invalid character" or strange display
 
 Remember that the ZX81 uses its own character set, not ASCII. If you're seeing strange characters, the piece encoding or display routine may have an error. Check the POKE values against the listing.
+
+---
+
+## A Note on Randomness (FRAMES) in the Emulators
+
+The chess AI breaks ties between equally-scored moves by reading bit 0
+of the FRAMES system variable ($4034) - a counter the real ZX81
+decrements every TV frame, making the coin flip effectively random on
+hardware.
+
+The emulators in this repo follow a deliberate convention:
+
+- **Browser** (`play/index.html`): calls `zx81.tickFrames()` once per
+  frame, so FRAMES counts down like real hardware and the AI's
+  tie-break is genuinely random - your games vary.
+- **Test harnesses** (Python `test_harness.py`, Node
+  `tools/diff_runner.js`): never tick FRAMES and pin it to a known
+  value (0), so every test and cross-emulator comparison is exactly
+  reproducible.
+
+If you add a new harness or runner, pick a side: tick for realism,
+pin for determinism. Don't leave FRAMES at whatever the .P loader
+happened to write ($FFFF), or you'll get a deterministic-but-odd
+kingside bias.
 
 ---
 

@@ -103,7 +103,7 @@ Index 56-63: 0C 0A 0B 0D 0E 0B 0A 0C  (Black: R N B Q K B N R)
 ### Working Variables (7 bytes at $40C2)
 
 ```asm
-cursor:     DEFB    0           ; Current cursor position
+ep_square:  DEFB    $FF         ; En passant target square ($FF = none)
 move_from:  DEFB    0           ; Player's source square (0-63)
 move_to:    DEFB    0           ; Player's destination square (0-63)
 best_from:  DEFB    0           ; Computer's best move source
@@ -113,6 +113,8 @@ side:       DEFB    0           ; Whose turn: 0=White, 8=Black
 ```
 
 Seven bytes. That's all the working memory the program has (besides the stack and registers). Every variable is exactly one byte because we can't afford two-byte variables where one will do.
+
+`ep_square` reuses the byte that was originally reserved for a cursor feature that never happened. It holds the square a double-pushed pawn skipped over - the square where it can be captured en passant - and is valid for exactly one ply (see do_move).
 
 ### Piece Characters Table (7 bytes)
 
@@ -253,10 +255,15 @@ ib_br:
     inc     hl
     inc     de
     djnz    ib_br
+
+    ; HL now points just past the board = ep_square
+    ld      (hl), $FF       ; No en passant right
     ret
 ```
 
 **The trick:** We reuse the same `init_rank` table for both White and Black. For Black pieces, we just OR the colour bit in: `or 8` sets bit 3, turning White Rook ($04) into Black Rook ($0C), etc. This saves 8 bytes of data.
+
+**A second trick hides in the ending:** after the back-rank loop, HL has walked off the end of the board - which is exactly where `ep_square` lives ($40C2 = board + 64). So resetting the en passant state costs just 2 bytes (`LD (HL), $FF`) instead of the 5 a `LD A`/`LD (nn), A` pair would need.
 
 ---
 
@@ -272,31 +279,33 @@ cls_and_draw:
 The ZX81 ROM at address $0A2A clears the display file and resets the print position. We let the ROM do the heavy lifting - no point reimplementing CLS when there's a perfectly good one in ROM.
 
 ```asm
-    ; Get display file address
-    ld      hl, (D_FILE)    ; Read D_FILE system variable
-    inc     hl              ; Skip first NEWLINE byte
+    ; Column header: "  A B C D E F G H"
+    call    print_files     ; Shared with the footer (see below)
+    ld      a, CH_NEWLINE
+    rst     $10             ; End the line
 ```
 
-**Important ZX81 detail:** The display file starts with a NEWLINE ($76) byte. The actual display content begins at D_FILE + 1. If you forget the `INC HL`, everything is shifted one character to the left.
+The file-letters line appears twice on screen - above and below the board - so it's one subroutine:
 
 ```asm
-    ; Column header: "  A B C D E F G H"
+print_files:
     ld      a, CH_SPACE
     rst     $10             ; Print space
     rst     $10             ; Print space (2 leading spaces for alignment)
     ld      b, 8
     ld      a, CH_A         ; ZX81 char code for "A"
-hdr_loop:
+pf_loop:
     push    af
     rst     $10             ; Print the letter
     ld      a, CH_SPACE
     rst     $10             ; Print space after it
     pop     af
     inc     a               ; Next letter (A->B->C...->H)
-    djnz    hdr_loop
-    ld      a, CH_NEWLINE
-    rst     $10             ; End the line
+    djnz    pf_loop
+    ret
 ```
+
+The header CALLs it; the footer doesn't even pay for a CALL - `print_files` sits directly after the row loop, so the footer is reached by **falling through**, and `print_files`'s RET ends `cls_and_draw` too. (RST $10 prints via the DF_CC system variable, so no display-file pointer is needed in HL.)
 
 `RST $10` is a **restart instruction** - a one-byte CALL to a fixed ROM address. RST $10 calls the ZX81's character print routine, which prints the character in the A register at the current print position and advances the cursor. It's the machine code equivalent of BASIC's `PRINT CHR$(A)`.
 
@@ -410,8 +419,9 @@ get_square:
     rlca                    ; A = rank * 2
     rlca                    ; A = rank * 4
     rlca                    ; A = rank * 8
-    pop     de              ; E = file number (from the push above)
-    add     a, e            ; A = rank * 8 + file
+    pop     de              ; D = file number (PUSH AF puts A in the
+                            ; high byte, which POP DE lands in D)
+    add     a, d            ; A = rank * 8 + file
     ret
 ```
 
@@ -455,11 +465,8 @@ Three functions for the price of one instruction. The ZX81's design was brillian
 ```asm
 do_move:
     ; Pick up piece from source
-    ld      e, c            ; E = source square
-    ld      d, 0
-    ld      hl, board
-    add     hl, de          ; HL = address of source square
-    ld      a, (hl)         ; A = piece being moved
+    ld      a, c            ; A = source square
+    call    board_addr      ; HL -> source, A = piece being moved
     ld      (hl), 0         ; Clear source (piece picked up)
 
     ; Place on destination
@@ -472,30 +479,83 @@ do_move:
 
 **Captures are free:** We don't need special capture code. Writing the moving piece to the destination square automatically overwrites whatever was there. If it was an enemy piece, it's now gone. If it was empty, no harm done.
 
-### Pawn Promotion (12 bytes!)
+(`board_addr` is the shared board-indexing helper - see Part 7.)
+
+### Pawn Specials: En Passant and Promotion
+
+After the move executes, pawns get special treatment. Everything below keys off one test:
 
 ```asm
     and     $07             ; Get piece type
     cp      1               ; Is it a pawn?
-    ret     nz              ; No -> done
+    jr      z, dm_pawn
 
-    ld      a, b            ; Check destination rank
-    cp      56              ; Rank 8? (indices 56-63)
-    jr      nc, promote_w   ; White pawn reached rank 8
-    cp      8               ; Rank 1? (indices 0-7)
-    ret     nc              ; No promotion
-
-    ld      a, $0D          ; Black Queen
-    ld      (hl), a
+    ; Non-pawn move: the en passant right expires
+    ld      a, $FF
+    ld      (ep_square), a
     ret
+```
 
-promote_w:
-    ld      a, $05          ; White Queen
+An en passant right lasts exactly one ply, so **every** move that isn't a double push must clear it - even a rook shuffle.
+
+```asm
+dm_pawn:
+    ; En passant capture?
+    ld      a, (ep_square)
+    cp      b               ; Landed on the ep square?
+    jr      nz, dm_rearm
+    ld      a, c
+    and     $38             ; Source rank...
+    ld      d, a
+    ld      a, b
+    and     $07             ; ...destination file
+    or      d
+    push    hl
+    call    board_addr
+    ld      (hl), 0         ; Remove the captured pawn
+    pop     hl
+```
+
+**The bypassed pawn's address:** it sits on the *source* rank (the capturing pawn moves diagonally off that rank) in the *destination* file. `(C AND $38) OR (B AND $07)` computes that square in one expression that works for both colours - no branching on side.
+
+A pawn can only arrive on the ep square diagonally while the right is live: the square was vacated mid-double-push, and a straight push onto it is blocked by the double-pusher itself. So there's no occupancy test - if a pawn lands there, it's the en passant capture.
+
+```asm
+dm_rearm:
+    ; The old right is spent; a double push grants a fresh one
+    ld      a, $FF
+    ld      (ep_square), a
+    ld      a, c
+    sub     b               ; from - to
+    jr      nc, dm_abs
+    neg                     ; Make positive
+dm_abs:
+    cp      16              ; Moved two ranks?
+    jr      nz, dm_promo
+    ld      a, c
+    add     a, b            ; from + to < 128, so RRA
+    rra                     ; halves it: the skipped square
+    ld      (ep_square), a
+    ret                     ; A double push can't promote
+```
+
+**The midpoint trick:** the skipped square is exactly halfway between source and destination. Their sum never exceeds 127, so the carry is clear and `RRA` is a one-byte divide-by-two.
+
+```asm
+dm_promo:
+    ld      a, b            ; Check destination rank
+    cp      56              ; Rank 8: White promotes
+    jr      nc, dm_crown
+    cp      8               ; Ranks 2-7: nothing to do
+    ret     nc
+dm_crown:
+    ld      a, (side)
+    or      5               ; Queen of the moving side
     ld      (hl), a
     ret
 ```
 
-Twelve bytes for pawn promotion. It always promotes to a Queen (no choice), which is the correct move about 99% of the time in real chess. Under-promotion to a Knight is occasionally useful, but not worth the bytes.
+Promotion always crowns a Queen (no choice - correct ~99% of the time in real chess), and `5 OR side` produces the right colour for whoever moved: side=0 gives the White Queen ($05), side=8 the Black Queen ($0D). One code path, both colours.
 
 ---
 
@@ -583,6 +643,39 @@ gen_pawn:
 
 **The rank check trick:** `AND $38` isolates bits 3-5, which represent the rank (0-7). For rank 6 (Black's pawn starting rank), bits 3-5 = 110, so `AND $38` = $30. This is cheaper than dividing by 8 and comparing with 6.
 
+### check_pawn_cap: Validating Pawn Captures (Including En Passant)
+
+The two diagonal capture candidates (-7 and -9) both funnel through one validator:
+
+```asm
+check_pawn_cap:
+    ; Column must change by exactly 1 (diagonal, no edge wrap)
+    call    check_col_delta ; A = |col(C) - col(E)|
+    dec     a
+    jr      nz, cpc_bad     ; 0 = not diagonal, >=2 = wrapped
+
+    ; Capturing onto the en passant square is valid even though
+    ; the square is empty
+    ld      a, (ep_square)
+    cp      c
+    jr      z, cpc_take
+
+    ; Otherwise the target must hold a White piece
+    call    get_board_sq
+    and     a
+    jr      z, cpc_bad      ; Empty - pawns can't "move" diagonally
+    bit     3, a
+    jr      nz, cpc_bad     ; Own piece - can't capture
+
+cpc_take:
+    call    score_move
+    call    try_move
+cpc_bad:
+    ret
+```
+
+**Two reuse tricks here.** First, the diagonal test is just `check_col_delta` (the shared edge-wrap helper) followed by `DEC A / JR NZ` - delta must be exactly 1. Second, the en passant path needs no special scoring: `score_move` sees the empty ep square and returns its non-capture score of 1, which happens to be **exactly a pawn's value**. The AI prices the en passant capture correctly by accident of design.
+
 ### gen_slider: The Unified Sliding Piece Generator
 
 This is my favourite part of the entire program.
@@ -591,19 +684,21 @@ This is my favourite part of the entire program.
 gen_slider:
     ; D = piece type (3=Bishop, 4=Rook, 5=Queen)
     ld      a, d
-    cp      3
-    ld      a, $A5          ; Bishop mask: 10100101
-    jr      z, gs_go
-    cp      4
-    ld      a, $5A          ; Rook mask: 01011010
-    jr      z, gs_go
+    cp      5
     ld      a, $FF          ; Queen mask: 11111111
+    jr      nc, gs_go       ; type >= 5: Queen
+    ld      a, $5A          ; Rook mask: 01011010
+    bit     0, d            ; Bishop=3 (odd), Rook=4 (even)
+    jr      z, gs_go
+    ld      a, $A5          ; Bishop mask: 10100101
 
 gs_go:
     ld      hl, king_dirs   ; Point to direction table
     ld      b, 8            ; 8 directions
     ld      d, a            ; D = direction mask
 ```
+
+The selection logic loads each candidate mask *before* testing, because `LD A, n` doesn't touch the flags - the `CP`/`BIT` results survive the load. Bishop and Rook are told apart by their low bit (3 is odd, 4 is even).
 
 The bitmask approach: the `king_dirs` table has 8 direction offsets. For a Bishop, we only want the diagonal ones (indices 0, 2, 5, 7). The mask $A5 = 10100101 has bits set exactly at those positions.
 
@@ -679,17 +774,55 @@ ccd_pos:
 
 **Why we need this:** On a linear board array, moving "east" from h1 (index 7) wraps around to a2 (index 8). The direction offset +1 produces a valid index, but it's wrong - we jumped to the next rank. By checking that the column change matches the expected delta (0 or 1 for most pieces, 0-2 for knights), we catch these wrap-arounds.
 
+### board_addr / get_board_sq: The Board Indexing Helpers
+
+```asm
+board_addr:
+    ld      e, a            ; E = square number
+    ld      d, 0
+    ld      hl, board
+    add     hl, de          ; HL -> that square
+    ld      a, (hl)         ; A = piece there
+    ret
+
+get_board_sq:
+    push    hl
+    push    de
+    ld      a, c
+    call    board_addr
+    pop     de
+    pop     hl
+    ret
+```
+
+"Index the board by a square number" is the single most repeated idiom in the program - input validation, move execution, the AI scan all need it. `board_addr` (square in A, clobbers DE) is the raw 9-byte helper; `get_board_sq` wraps it for callers inside register-sensitive loops (square in C, everything but A preserved). Factoring this out of five inlined copies paid for a good chunk of the en passant feature.
+
 ### try_move: Recording the Best Move
 
 ```asm
 try_move:
     push    de
     ld      d, a            ; D = this move's score
+
+    ; Centre column bonus: +1 for columns d,e
+    ld      a, c            ; Target square
+    and     $07             ; Column 0-7
+    sub     3               ; Columns d,e become 0,1
+    cp      2
+    jr      nc, tm_no_bonus
+    inc     d               ; +1 for centre column
+tm_no_bonus:
     ld      a, (best_score)
     cp      d               ; Compare: best vs this
-    jr      nc, tm_skip     ; best >= this? Skip
+    jr      c, tm_new       ; best < this: new best
+    jr      nz, tm_skip     ; best > this: skip
 
-    ; New best!
+    ; Tied: coin flip using FRAMES counter
+    ld      a, (FRAMES)     ; Pseudo-random from TV timing
+    rra                     ; Bit 0 into carry
+    jr      nc, tm_skip     ; 50% keep old
+
+tm_new:
     ld      a, d
     ld      (best_score), a
     ld      a, e
@@ -702,42 +835,51 @@ tm_skip:
     ret
 ```
 
-This is the "keep the best" pattern. Every potential computer move calls this routine with its score in A, source in E, and target in C. If the score beats the current best, we update. Otherwise, skip.
+This is the "keep the best" pattern. Every potential computer move calls this routine with its score in A, source in E, and target in C - plus two refinements:
 
-**Tie-breaking:** When two moves have equal scores, `CP D` / `JR NC` means we keep the existing best (skip the new one). This creates a first-found bias: pieces on lower-numbered squares (queenside) are slightly favoured. A truly random tie-break would be more fair, but would cost ~10 bytes we don't have.
+**Centre bonus:** moves targeting the d or e files score one extra point. `(col - 3)` maps columns d,e to 0,1, so a single unsigned `CP 2` catches both. This nudges the engine toward central development.
+
+**Tie-breaking:** when a move ties with the current best, bit 0 of the FRAMES counter (a system variable the ZX81 decrements every TV frame) decides whether to keep the old move or take the new one. Without it, the a-to-h scan order made the engine relentlessly queenside-biased. (The test harnesses pin FRAMES to a fixed value so tests stay deterministic.)
 
 ---
 
 ## Byte Count Summary
 
+Derived from the assembler's symbol table for the current build:
+
 ```
 Section                  Bytes   Purpose
 -----------------------  -----   -------
 Board data               64      Chess board state
-Working variables        7       Game state tracking
+Working variables        7       ep_square + game state tracking
 Piece chars table        7       Display lookup
 Piece values table       7       AI evaluation lookup
 Direction tables         16      Movement offsets
 Init rank data           8       Starting position
-Init board routine       56      Set up starting position
-Display routine          85      Render board to screen
-Get piece char           15      Piece code to display char
-Player input             55      Keyboard & square selection
-Wait key routine         12      Keyboard polling
-Move execution           30      Make move + promotion
-Check kings              14      Game over detection
-AI main loop             40      Scan board for moves
-Pawn generation          50      Black pawn moves
-Knight generation        30      Knight L-shaped moves
-King generation          25      King single-step moves
-Slider generation        80      Bishop/Rook/Queen sliding
-AI helpers               40      Board lookup, col check
-Score & try_move         22      Evaluation & selection
-Print message            7       End-game messages
-Message data             15      "YOU WIN" / "I WIN"
-Main loop + game over    30      Control flow
+Main loop + game over    60      Control flow, win/lose
+Message data             14      "YOU WIN" / "I WIN"
+Init board routine       59      Set up starting position
+Display routine          58      Render board to screen
+Print files line         18      Header/footer letters (shared)
+Get piece char           24      Piece code to display char
+Get move                 41      Move input & validation
+Get square               29      Square input & echo
+Wait key routine         16      Keyboard polling
+Move execution           102     Moves, en passant, promotion
+Check kings              22      Game over detection
+AI main loop             53      Scan board for moves
+Pawn gen + capture check 90      Black pawn moves incl. ep
+Knight generation        44      Knight L-shaped moves
+King generation          44      King single-step moves
+Slider generation        95      Bishop/Rook/Queen sliding
+board_addr/get_board_sq  18      Board indexing helpers
+check_col_delta          15      Edge-wrap detection
+score_move               24      Capture evaluation
+try_move                 40      Best move + bonus + tie-break
+Print message            8       End-game messages
 -----------------------  -----
-TOTAL                    ~672    Every byte accounted for
+TOTAL                    983     Every byte accounted for
+                                 (hard ceiling: 984)
 ```
 
 ---
@@ -768,6 +910,6 @@ The dominance of LD, AND, and JR tells the story: this program spends most of it
   Every byte was earned.
   Nothing is wasted."
 
-  Total: 672 bytes
-  Unused: 0
+  Total: 983 bytes
+  Unused: 1 (the ceiling is 984)
 ```

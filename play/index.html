@@ -1182,6 +1182,11 @@
         function runFrame() {
             if (!running) return;
 
+            // Real-hardware behaviour: FRAMES counts down every frame.
+            // Human input timing varies how many frames elapse, which
+            // makes the AI's FRAMES-based tie-break genuinely random.
+            zx81.tickFrames();
+
             let hitHalt = false;
             for (let i = 0; i < 100000 && running; i++) {
                 if (cpu.pc === 0) { running = false; break; }

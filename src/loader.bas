@@ -3,15 +3,23 @@ REM
 REM   ZX81 1K CHESS  -  "KING OF THE CASTLE"
 REM   BASIC Loader Program
 REM
-REM   How to use:
+REM   *** HISTORICAL LISTING - DO NOT TYPE IN ***
+REM   This loader captures an early version of the
+REM   machine code and has NOT been kept in sync as
+REM   the game grew (it is now 983 bytes, not 672).
+REM   For manual entry, use hexdump.txt instead: it
+REM   is regenerated from chess.bin on every build.
+REM
+REM   How to use (historically):
 REM   1. Type in this listing EXACTLY as shown
 REM   2. SAVE it to tape first! (SAVE "CHESS")
 REM   3. Then RUN to start the game
 REM
 REM   The machine code is POKEd into a REM statement
 REM   on line 1. The REM statement must have exactly
-REM   672 characters after it (use SHIFT+RUBOUT to
-REM   count them, or just type the spaces).
+REM   as many characters after it as the binary has
+REM   bytes (use SHIFT+RUBOUT to count them, or just
+REM   type the spaces).
 REM
 REM   Line 10000 contains the hex data as a string.
 REM   The loader reads pairs of hex digits, converts
