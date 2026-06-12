@@ -209,6 +209,30 @@ Remember that the ZX81 uses its own character set, not ASCII. If you're seeing s
 
 ---
 
+## A Note on Randomness (FRAMES) in the Emulators
+
+The chess AI breaks ties between equally-scored moves by reading bit 0
+of the FRAMES system variable ($4034) - a counter the real ZX81
+decrements every TV frame, making the coin flip effectively random on
+hardware.
+
+The emulators in this repo follow a deliberate convention:
+
+- **Browser** (`play/index.html`): calls `zx81.tickFrames()` once per
+  frame, so FRAMES counts down like real hardware and the AI's
+  tie-break is genuinely random - your games vary.
+- **Test harnesses** (Python `test_harness.py`, Node
+  `tools/diff_runner.js`): never tick FRAMES and pin it to a known
+  value (0), so every test and cross-emulator comparison is exactly
+  reproducible.
+
+If you add a new harness or runner, pick a side: tick for realism,
+pin for determinism. Don't leave FRAMES at whatever the .P loader
+happened to write ($FFFF), or you'll get a deterministic-but-odd
+kingside bias.
+
+---
+
 ## Creating a .P File
 
 The ZX81 .P file format is a raw memory dump. The file contains:

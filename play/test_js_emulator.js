@@ -247,6 +247,27 @@ console.log('\n=== Test 6: clearDisplay writes 0x76 row markers ===');
     }
 }
 
+// --- Test 7: tickFrames decrements FRAMES and wraps ---
+console.log('\n=== Test 7: tickFrames decrements FRAMES with 16-bit wrap ===');
+{
+    const { cpu, zx81 } = setupEmulator();
+
+    cpu.ww(0x4034, 0x8000);
+    zx81.tickFrames();
+    let ok = assert(cpu.rw(0x4034) === 0x7FFF,
+        `FRAMES should go 0x8000 -> 0x7FFF, got 0x${cpu.rw(0x4034).toString(16)}`);
+
+    cpu.ww(0x4034, 0x0000);
+    zx81.tickFrames();
+    if (!assert(cpu.rw(0x4034) === 0xFFFF,
+        `FRAMES should wrap 0x0000 -> 0xFFFF, got 0x${cpu.rw(0x4034).toString(16)}`)) ok = false;
+
+    if (ok) {
+        console.log('  tickFrames decrements and wraps correctly');
+        passed++;
+    }
+}
+
 // --- Summary ---
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
 process.exit(failed > 0 ? 1 : 0);
