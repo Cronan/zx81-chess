@@ -764,9 +764,17 @@ gen_pawn:
             and     a               ; Empty?
             jr      nz, gp_cap      ; No - can't move forward
 
-            ; Empty - this is a valid non-capture move
-            ld      a, 1            ; Score = 1 (meh, it's a move)
-            call    try_move        ; Record if best so far
+            ; Empty - this is a valid non-capture move. A push to the
+            ; last rank becomes a queen, so score it as winning one;
+            ; before this the AI saw promotion as just another move.
+            ; (A capture-promotion still scores only the captured
+            ; piece - rarer, and the capture usually wins anyway.)
+            ld      a, c            ; Target square
+            cp      8               ; Below rank 2 = Black promotes
+            ld      a, 1            ; Quiet score (LD keeps the flags)
+            jr      nc, gp_score
+            ld      a, (piece_vals + 5) ; Promotion = a queen's worth
+gp_score:   call    try_move        ; Record if best so far
 
             ; Can we move two squares? (from starting rank 6 = indices 48-55)
             ld      a, e            ; Source square

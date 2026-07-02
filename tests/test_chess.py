@@ -1432,6 +1432,38 @@ def test_capture_beats_centre_quiet():
     print("  PASS: capture outbids quiet centre move")
 
 
+def test_promotion_push_outbids_capture():
+    """The AI values a promoting push as a queen, not as a quiet move.
+
+    gen_pawn used to score every forward push 1, so the AI would take
+    any pawn rather than queen. The push to the last rank now scores
+    the queen's own table value.
+    """
+    t = ChessTest()
+    cpu = t.setup_cpu()
+    t.clear_board(cpu)
+
+    e2, e1 = t.sq('e', 2), t.sq('e', 1)
+    t.set_piece(cpu, e2, B_PAWN)            # one push from promotion
+    t.set_piece(cpu, t.sq('b', 5), B_PAWN)  # has a pawn capture available
+    t.set_piece(cpu, t.sq('a', 4), W_PAWN)
+    t.set_piece(cpu, t.sq('a', 8), B_KING)
+    t.set_piece(cpu, t.sq('h', 8), W_KING)
+    cpu.wb(EP_SQUARE, 0xFF)
+    cpu.wb(SIDE, 8)
+
+    t.call_routine(cpu, t.find_think(cpu))
+
+    best_from, best_to = cpu.rb(BEST_FROM), cpu.rb(BEST_TO)
+    assert (best_from, best_to) == (e2, e1), \
+        f"AI should promote e2-e1 ({e2}->{e1}), got {best_from}->{best_to}"
+    expected = t.piece_value(cpu, W_QUEEN) + 1  # + centre bonus (e file)
+    assert cpu.rb(BEST_SCORE) == expected, \
+        f"promoting push should score {expected}, got {cpu.rb(BEST_SCORE)}"
+
+    print("  PASS: promotion push outbids a pawn capture")
+
+
 def test_ai_no_move_passes():
     """AI with zero pseudo-legal moves must not corrupt memory.
 
@@ -1521,6 +1553,7 @@ def run_all_tests():
         ("En Passant (expires)", test_en_passant_expires),
         ("En Passant (state transitions)", test_en_passant_state),
         ("Capture Beats Centre Quiet", test_capture_beats_centre_quiet),
+        ("Promotion Push Outbids Capture", test_promotion_push_outbids_capture),
         ("AI No Move (memory safety)", test_ai_no_move_passes),
     ]
 
