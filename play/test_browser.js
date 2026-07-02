@@ -172,6 +172,44 @@ async function main() {
         passed++;
     }
 
+    // --- Test 8: board flip and keyboard accessibility ---
+    console.log('\n=== Browser 8: flip + keyboard access ===');
+    await page.locator('#btn-modern-flip').dispatchEvent('click');
+    ok = await page.evaluate(() =>
+        document.getElementById('modern-view').classList.contains('flipped') &&
+        document.getElementById('btn-modern-flip').getAttribute('aria-pressed') === 'true');
+    assert(ok, 'flip button should add the flipped class and set aria-pressed');
+    await page.locator('#btn-modern-flip').dispatchEvent('click');
+
+    // Squares and membrane keys are keyboard-operable buttons
+    const a11y = await page.evaluate(() => {
+        const sq = document.querySelector('.square[data-sq="12"]');
+        const key = document.querySelector('.kb-key[data-key="E"]');
+        return {
+            sqRole: sq.getAttribute('role'), sqTab: sq.tabIndex,
+            sqLabel: sq.getAttribute('aria-label'),
+            keyRole: key.getAttribute('role'), keyTab: key.tabIndex,
+            zoomable: !document.querySelector('meta[name="viewport"]')
+                .content.includes('user-scalable=no'),
+        };
+    });
+    if (!assert(a11y.sqRole === 'button' && a11y.sqTab === 0 &&
+        a11y.sqLabel === 'e2, white pawn',
+        `square a11y wrong: ${JSON.stringify(a11y)}`)) ok = false;
+    if (!assert(a11y.keyRole === 'button' && a11y.keyTab === 0,
+        'membrane keys should be focusable buttons')) ok = false;
+    if (!assert(a11y.zoomable, 'pinch zoom should not be blocked')) ok = false;
+
+    // Move a piece with the keyboard only: focus e2, Enter, focus e4, Enter
+    await page.evaluate(() => document.querySelector('.square[data-sq="12"]').focus());
+    await page.keyboard.press('Enter');
+    await page.evaluate(() => document.querySelector('.square[data-sq="28"]').focus());
+    await page.keyboard.press('Enter');
+    await waitForInputTurn(page);
+    const kbE4 = await waitForPiece(page, 28, '#wP');
+    if (!assert(kbE4 === '#wP', `keyboard-only move failed, e4 holds ${kbE4}`)) ok = false;
+    if (ok) { console.log('  flip toggles, squares/keys keyboard-operable, zoom allowed'); passed++; }
+
     await browser.close();
     console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
     process.exit(failed > 0 ? 1 : 0);

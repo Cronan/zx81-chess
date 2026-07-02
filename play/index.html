@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ZX81 1K Chess</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -248,6 +248,10 @@
             letter-spacing: 0.5px;
         }
         .reset-btn:hover { border-color: #555; color: #222; }
+        .kb-key:focus-visible, .square:focus-visible {
+            outline: 2px solid #4a90d9;
+            outline-offset: -2px;
+        }
         .reset-btn:disabled, .modern-new-game:disabled {
             opacity: 0.4;
             cursor: default;
@@ -407,6 +411,13 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
             font-weight: 600;
         }
+        /* Board flip: rotate the grid, counter-rotate the pieces.
+           data-sq stays truthful, so input logic never notices. */
+        .modern-view.flipped .modern-board { transform: rotate(180deg); }
+        .modern-view.flipped .modern-board .square svg { transform: rotate(180deg); }
+        .modern-view.flipped .modern-coords-left { flex-direction: column-reverse; }
+        .modern-view.flipped .modern-coords-bottom { flex-direction: row-reverse; }
+
         .modern-board {
             flex: 1;
             display: grid;
@@ -590,7 +601,7 @@
             <span class="model">ZX81</span>
         </div>
         <div class="screen-bezel">
-            <canvas id="screen"></canvas>
+            <canvas id="screen" role="img" aria-label="ZX81 screen showing the chess board"></canvas>
         </div>
         <div class="move-bar" id="move-bar">
             <span class="move-slot active" id="s0">_</span>
@@ -889,6 +900,7 @@
         <div class="modern-controls">
             <button class="modern-new-game" id="btn-modern-reset">New game</button>
             <button class="modern-new-game" id="btn-modern-undo" disabled>Undo</button>
+            <button class="modern-new-game" id="btn-modern-flip" aria-pressed="false">Flip board</button>
         </div>
         <div class="palette-row" id="palette-picker">
             <button class="palette-dot active" data-palette="classic" aria-label="Classic green board" tabindex="0">
@@ -1147,6 +1159,10 @@
                     sq.dataset.sq = idx;
                     sq.dataset.file = String.fromCharCode(65 + col);
                     sq.dataset.rank = rank + 1;
+                    sq.setAttribute('role', 'button');
+                    sq.tabIndex = 0;
+                    sq.setAttribute('aria-label',
+                        sq.dataset.file.toLowerCase() + sq.dataset.rank + ', empty');
                     board.appendChild(sq);
                     modernSquares[idx] = sq;
                 }
@@ -1172,11 +1188,16 @@
                 }
             }
 
+            const PIECE_WORDS = ['empty', 'pawn', 'knight', 'bishop', 'rook', 'queen', 'king'];
             for (let i = 0; i < 64; i++) {
                 const sq = modernSquares[i];
                 const piece = state[i];
                 const ptype = piece & 0x07;
                 const isBlack = (piece & 0x08) !== 0;
+
+                const coord = sq.dataset.file.toLowerCase() + sq.dataset.rank;
+                sq.setAttribute('aria-label', ptype === 0 ? coord + ', empty'
+                    : coord + ', ' + (isBlack ? 'black ' : 'white ') + PIECE_WORDS[ptype]);
 
                 // Clear previous piece
                 while (sq.firstChild) sq.removeChild(sq.firstChild);
@@ -1555,7 +1576,7 @@
         }
 
         // --- Modern board click input ---
-        document.getElementById('modern-board').addEventListener('pointerdown', (e) => {
+        function activateSquare(e) {
             if (!modernMode || !running || !waitingForInput) return;
             const sq = e.target.closest('.square');
             if (!sq) return;
@@ -1600,7 +1621,40 @@
                 handleKey(file);
                 handleKey(rank);
             }
+        }
+
+        document.getElementById('modern-board').addEventListener('pointerdown', activateSquare);
+        // Keyboard operability: squares are focusable role=button
+        document.getElementById('modern-board').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') activateSquare(e);
         });
+
+        // The membrane keys are focusable buttons too
+        document.querySelectorAll('.kb-key').forEach((el) => {
+            el.setAttribute('role', 'button');
+            el.tabIndex = 0;
+            const k = el.dataset.key;
+            el.setAttribute('aria-label', k === 'DEL' ? 'Delete' : k);
+        });
+        document.getElementById('keyboard').addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            const el = e.target.closest('.kb-key');
+            if (!el || !el.classList.contains('valid')) return;
+            e.preventDefault();
+            flashKey(el);
+            handleKey(el.dataset.key);
+        });
+
+        // --- Board flip (modern skin) ---
+        const flipBtn = document.getElementById('btn-modern-flip');
+        function setFlipped(flipped) {
+            document.getElementById('modern-view').classList.toggle('flipped', flipped);
+            flipBtn.setAttribute('aria-pressed', String(flipped));
+            try { localStorage.setItem('chess-flipped', flipped ? '1' : ''); } catch (e) {}
+        }
+        flipBtn.addEventListener('click', () =>
+            setFlipped(!document.getElementById('modern-view').classList.contains('flipped')));
+        try { if (localStorage.getItem('chess-flipped')) setFlipped(true); } catch (e) {}
 
         // --- Modern new game ---
         document.getElementById('btn-modern-reset').onclick = resetGame;
