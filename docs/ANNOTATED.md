@@ -577,11 +577,7 @@ think_scan:
     push    af                  ; Save current square number
 
     ; Look up what's on this square
-    ld      e, a
-    ld      d, 0
-    ld      hl, board
-    add     hl, de
-    ld      a, (hl)
+    call    board_addr          ; A = piece (shared helper, Part 7)
 
     and     a                   ; Empty?
     jr      z, think_next       ; Skip empty squares
@@ -590,20 +586,24 @@ think_scan:
 
     ; Found a Black piece - generate its moves
     and     $07                 ; Get piece type
-    pop     de                  ; E = square number
-    push    de                  ; Put it back (we need it later)
     ld      d, a                ; D = piece type
+    pop     af                  ; A = square number
+    push    af                  ; Put it back (think_next pops it)
+    ld      e, a                ; E = square number
+    ld      a, d                ; A = piece type for the compares
 
     cp      1                   ; Pawn?
-    jr      z, gen_pawn
+    jp      z, gen_pawn
     cp      2                   ; Knight?
-    jr      z, gen_knight
+    jp      z, gen_knight
     cp      6                   ; King?
-    jr      z, gen_king
-    jr      gen_slider          ; Must be Bishop, Rook, or Queen
+    jp      z, gen_king
+    jp      gen_slider          ; Must be Bishop, Rook, or Queen
 ```
 
 **The scanning strategy:** We check every square on the board (0 to 63). For each Black piece found, we branch to the appropriate move generator. The piece type is in D, the square number is in E. These two values are maintained throughout the move generation for that piece.
+
+**The $FF sentinel matters:** if the scan finds no move at all (a boxed-in lone king), `best_from` keeps its $FF. `ai_make_move` checks for it with a 3-byte `INC A / RET Z / DEC A` and skips the turn - without that guard, `do_move` would index `board + $FF`, which lands inside the machine code and corrupts it.
 
 ### gen_pawn: Black Pawn Moves
 

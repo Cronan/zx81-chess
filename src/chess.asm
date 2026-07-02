@@ -676,10 +676,11 @@ ck_next:    inc     hl
 ;   3. Score each move:
 ;      - Capture of enemy piece = piece value (1-50)
 ;      - Non-capture move = 1 point (just to have something)
-;      - Moving to a square attacked by enemy pawn = -2 penalty
+;      - Moving to a centre file (d or e) = +1 bonus
 ;   4. Keep track of the best-scoring move
-;   5. If tied, keep the first one found (slight preference for
-;      queenside pieces, which is a known weakness!)
+;   5. If tied, flip a coin (bit 0 of the FRAMES counter), so the
+;      choice varies from game to game instead of favouring the
+;      queenside
 ;
 ; Move generation uses direction tables. Each piece type has
 ; its movement pattern defined by direction offsets.
@@ -745,7 +746,8 @@ think_next:
 ; Capture: -7 (forward-left), -9 (forward-right)
 ; Double:  -16 (from rank 7 = starting position, indices 48-55)
 ;
-; Note: no en passant! That would eat about 40 bytes we don't have.
+; En passant rides along for free: check_pawn_cap treats a capture
+; onto the live ep square as valid, and do_move removes the pawn.
 
 gen_pawn:
             ; E = current square
