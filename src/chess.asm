@@ -558,6 +558,9 @@ make_move:
 
 ai_make_move:
             ld      a, (best_from)
+            inc     a               ; $FF = think found no move at all
+            ret     z               ; skip the turn rather than play square $FF
+            dec     a
             ld      c, a
             ld      a, (best_to)
             ld      b, a
@@ -782,7 +785,6 @@ gp_cap:
             ld      c, a
             ; Check column didn't wrap (file changed by exactly 1)
             call    check_pawn_cap
-            jr      z, gp_cap2      ; Not a valid capture
 
 gp_cap2:
             ld      a, e

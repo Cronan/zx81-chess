@@ -101,6 +101,15 @@ class ChessTest:
                 return cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
         raise RuntimeError("Could not find think routine")
 
+    def find_ai_make_move(self, cpu):
+        """Find ai_make_move via the CALL right after CALL think in game_loop."""
+        for addr in range(self.start_addr, self.start_addr + 200):
+            if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
+                cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
+                assert cpu.rb(addr + 8) == 0xCD, "Expected CALL ai_make_move after CALL think"
+                return cpu.rb(addr+9) | (cpu.rb(addr+10) << 8)
+        raise RuntimeError("Could not find ai_make_move routine")
+
     def find_get_move(self, cpu):
         """Find get_move routine address (3rd CALL from start, offset 10)."""
         return self.find_routine(cpu, 10)
@@ -1472,6 +1481,47 @@ def test_en_passant_state():
     print("  PASS: en passant state transitions")
 
 
+def test_ai_no_move_passes():
+    """AI with zero pseudo-legal moves must not corrupt memory.
+
+    think leaves best_from = $FF when Black has no move at all;
+    ai_make_move used to load it unchecked, index board + $FF and
+    stomp the code region at $4181. It must leave memory untouched.
+    """
+    t = ChessTest()
+    cpu = t.setup_cpu()
+    t.clear_board(cpu)
+
+    # Boxed-in Black king: rank-1 black pawns have no push or capture
+    # squares (all off-board), a2/b2 pawns are blocked by own pieces,
+    # and every king neighbour is a Black piece.
+    cpu.wb(EP_SQUARE, 0xFF)
+    t.set_piece(cpu, t.sq('a', 1), B_KING)
+    t.set_piece(cpu, t.sq('b', 1), B_PAWN)
+    t.set_piece(cpu, t.sq('a', 2), B_PAWN)
+    t.set_piece(cpu, t.sq('b', 2), B_PAWN)
+    t.set_piece(cpu, t.sq('h', 8), W_KING)
+    cpu.wb(SIDE, 8)
+
+    think_addr = t.find_think(cpu)
+    ai_make_move = t.find_ai_make_move(cpu)
+
+    t.call_routine(cpu, think_addr)
+    assert cpu.rb(BEST_FROM) == 0xFF, \
+        f"think should find no move, best_from = {cpu.rb(BEST_FROM)}"
+
+    board_before = [t.get_piece(cpu, i) for i in range(64)]
+    code_byte = cpu.rb(BOARD + 0xFF)  # $4181, inside the machine code
+    t.call_routine(cpu, ai_make_move)
+
+    assert cpu.rb(BOARD + 0xFF) == code_byte, \
+        "ai_make_move wrote through board + $FF into the code region"
+    board_after = [t.get_piece(cpu, i) for i in range(64)]
+    assert board_after == board_before, "AI with no move must leave the board unchanged"
+
+    print("  PASS: AI passes cleanly when it has no move")
+
+
 def run_all_tests():
     """Run all tests and report results."""
     print("\n=== ZX81 Chess Test Suite ===\n")
@@ -1519,6 +1569,7 @@ def run_all_tests():
         ("En Passant (AI capture)", test_en_passant_ai_capture),
         ("En Passant (expires)", test_en_passant_expires),
         ("En Passant (state transitions)", test_en_passant_state),
+        ("AI No Move (memory safety)", test_ai_no_move_passes),
     ]
 
     passed = 0
