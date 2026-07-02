@@ -281,6 +281,8 @@ For context, this README file is about 9 kilobytes. The entire chess game would 
 - **[docs/ZX81-GUIDE.md](docs/ZX81-GUIDE.md)** - ZX81 technical reference and links
 - **[docs/EMULATOR.md](docs/EMULATOR.md)** - Running on modern hardware
 - **[docs/MEMORY-MAP.md](docs/MEMORY-MAP.md)** - Where every byte lives
+- **[ROADMAP.md](ROADMAP.md)** - The improvement plan this codebase was taken through
+- **[SESSION.md](SESSION.md)** - What one Claude Fable 5 session found and fixed here (and what earlier models couldn't)
 
 ---
 
