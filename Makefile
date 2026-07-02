@@ -25,7 +25,12 @@ MAXSIZE ?= 984
 
 all: build test
 
-build: $(PFILE) hexdump.txt
+build: $(PFILE) hexdump.txt embed
+
+# The browser page embeds chess.p as base64 - regenerated, never hand-edited
+.PHONY: embed
+embed: $(PFILE) tools/update_embedded_p.py
+	$(PYTHON) tools/update_embedded_p.py
 
 $(BIN): $(SRC)
 	$(ASM) --bin $(SRC) $(BIN)
@@ -45,6 +50,9 @@ hexdump.txt: $(BIN) tools/make_hexdump.py
 	$(PYTHON) tools/make_hexdump.py $(BIN) hexdump.txt
 
 test: $(PFILE)
+	@echo "=== Embedded Binary Check ==="
+	$(PYTHON) tools/update_embedded_p.py --check
+	@echo ""
 	@echo "=== Basic Tests ==="
 	$(PYTHON) test_harness.py
 	@echo ""

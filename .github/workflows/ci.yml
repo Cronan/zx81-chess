@@ -32,6 +32,9 @@ jobs:
     - name: Build
       run: make build
 
+    - name: Check generated artifacts are committed
+      run: git diff --exit-code chess.bin chess.p hexdump.txt play/index.html
+
     - name: Run tests
       run: make test
 
