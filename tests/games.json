@@ -1,13 +1,13 @@
 {
-  "comment": "Scripted games for cross-emulator differential testing (tools/diff_test.py). Player moves are key sequences; the AI reply is deterministic with FRAMES pinned to 0. Moves only need to pass the game's minimal validation (white source, non-white destination) - some are deliberately unorthodox to reach promotion/game-over quickly, and 'captures' includes a move that gets rejected (source captured by the AI) to exercise the input retry path. 'combined' walks one game through a genuine AI en-passant capture (the black d4 pawn's forward square is blocked, making the ep capture its best move), promotions on both sides, and a king-capture finish. 'rejects' exercises every get_move rejection path. 'longgame' is machine-generated (greedy captures-first policy vs the deterministic AI) for position coverage depth.",
+  "comment": "Scripted games for cross-emulator differential testing (tools/diff_test.py). Player moves are key sequences; the AI reply is deterministic with FRAMES pinned to 0. Moves only need to pass the game's minimal validation (white source, non-white destination) - some are deliberately unorthodox to reach promotion/game-over quickly, and 'captures' includes a move that gets rejected (source captured by the AI) to exercise the input retry path. 'combined' walks one game through a genuine AI en-passant capture (the black d4 pawn's forward square is blocked, making the ep capture its best move), a white promotion, and a black-wins king capture - the only game that ends with the AI winning. 'rejects' exercises every get_move rejection path. 'longgame' is machine-generated (greedy captures-first policy vs the deterministic AI) for position coverage depth.",
   "games": {
     "opening": ["e2e4", "d2d4", "g1f3", "b1c3", "f1c4", "g2f3", "c1f4", "a2a3", "h2h3", "b2b3"],
     "captures": ["e2e4", "d2d4", "g1f3", "b1c3", "f1c4", "g2f3", "c4e6", "d1d3", "e6f7", "d3h7"],
     "promotion": ["a2a7", "a7b8", "d1d3", "h2h4"],
     "enpassant": ["e2e4", "d2d4", "c1e3", "f2f4", "g2g4", "h2h4"],
     "gameover": ["e2e4", "d2e8"],
-    "combined": ["d2d3", "h2h3", "h3h4", "e2e4", "a2a7", "a7b8", "b8e8"],
+    "combined": ["d2d3", "a2a3", "b2b3", "e2e4", "f2e3", "a3a7", "a7b8"],
     "rejects": ["e2e2", "e7e5", "d4d5", "e2e4"],
-    "longgame": ["b1a3", "a1b1", "g1f3", "f3d4", "b1a1", "c2d3", "a1b1", "b2a3", "b1b7", "c1b2", "b2g7", "g7h8", "d1d2", "h1g1", "d3e4", "d2d7", "g1h1", "e2e3"]
+    "longgame": ["b1a3", "a1b1", "g1f3", "f3d4", "b1a1", "c1d2", "a1b1", "b2a3", "b1b7", "d1a1", "f1g2", "a1g7", "g2a8"]
   }
 }

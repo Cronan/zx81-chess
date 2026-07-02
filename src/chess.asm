@@ -149,13 +149,17 @@ piece_chars:
 ; King value is high to make the computer always take the king
 ; (we don't have room for proper checkmate detection!)
 
+; Values are scaled so the SMALLEST capture (pawn, 3) beats the
+; biggest non-capture score (quiet move 1 + centre bonus 1 = 2).
+; With the classic 1/3/3/5/9 scale, a quiet centre move outbid
+; winning a free pawn and the AI declined material.
 piece_vals:
             DEFB    0           ; 0 = empty  (0 points)
-            DEFB    1           ; 1 = Pawn   (1 point)
-            DEFB    3           ; 2 = Knight (3 points)
-            DEFB    3           ; 3 = Bishop (3 points)
-            DEFB    5           ; 4 = Rook   (5 points)
-            DEFB    9           ; 5 = Queen  (9 points)
+            DEFB    3           ; 1 = Pawn
+            DEFB    8           ; 2 = Knight
+            DEFB    8           ; 3 = Bishop
+            DEFB    12          ; 4 = Rook
+            DEFB    20          ; 5 = Queen
             DEFB    50          ; 6 = King   (50 = game over!)
 
 ; Direction offsets for move generation
@@ -807,23 +811,25 @@ check_pawn_cap:
             jr      nz, cpc_bad     ; 0 = not diagonal, >=2 = wrapped
 
             ; Capturing onto the en passant square is valid even though
-            ; the square is empty (score_move scores an empty square as
-            ; 1, which is exactly a pawn's value).
+            ; the square is empty. It captures a real pawn, so it is
+            ; priced explicitly as one (score_move would see an empty
+            ; square and return the quiet-move score).
             ld      a, (ep_square)
             cp      c
-            jr      z, cpc_take
+            jr      nz, cpc_notep
+            ld      a, (piece_vals + 1)  ; The captured pawn's value
+            jr      cpc_try
 
-            ; Otherwise the target must hold a White piece to capture
+cpc_notep:  ; Otherwise the target must hold a White piece to capture
             call    get_board_sq    ; A = piece at target C
             and     a
             jr      z, cpc_bad      ; Empty - pawns can't "move" diagonally
             bit     3, a            ; Is it Black?
             jr      nz, cpc_bad     ; Own piece - can't capture
 
-            ; Valid capture! score_move looks up the captured piece's
-            ; value (or 1 for the en passant pawn).
-cpc_take:   call    score_move
-            call    try_move
+            ; Valid capture! score_move looks up the captured piece's value
+            call    score_move
+cpc_try:    call    try_move
 cpc_bad:    ret
 
 ; --- Knight and King move generation ---

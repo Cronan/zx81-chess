@@ -122,6 +122,10 @@ class ChessTest:
         init_addr = self.sym['init_board']
         self.call_routine(cpu, init_addr)
 
+    def piece_value(self, cpu, piece):
+        """Read a piece's capture value from the binary's own table."""
+        return cpu.rb(self.sym['piece_vals'] + (piece & 0x07))
+
 
 def test_board_init():
     """Test init_board routine."""
@@ -273,7 +277,9 @@ def test_rook_orthogonal():
 
     # Rook should capture queen on d1 (same file, highest value)
     assert best_to == d1, f"Rook should capture queen on d1 ({d1}), went to {best_to}"
-    assert best_score == 10, f"Score should be 10 (queen=9 + centre bonus=1), got {best_score}"
+    expected = t.piece_value(cpu, W_QUEEN) + 1  # + centre bonus (d file)
+    assert best_score == expected, \
+        f"Score should be {expected} (queen + centre bonus), got {best_score}"
 
     print("  PASS: rook orthogonal movement")
 
@@ -303,7 +309,8 @@ def test_queen_all_directions():
 
     # Queen should capture king on h8 (diagonal, highest value)
     assert best_to == h8, f"Queen should capture king on h8 ({h8}), went to {best_to}"
-    assert best_score == 50, f"Score should be 50 (king), got {best_score}"
+    expected = t.piece_value(cpu, W_KING)
+    assert best_score == expected, f"Score should be {expected} (king), got {best_score}"
 
     print("  PASS: queen all-direction movement")
 
@@ -450,8 +457,10 @@ def test_capture_priority():
     best_score = cpu.rb(BEST_SCORE)
 
     # Should capture rook (higher value)
-    assert best_to == e5, f"Should capture rook on e5 (value 5), captured square {best_to}"
-    assert best_score == 6, f"Score should be 6 (rook=5 + centre bonus=1), got {best_score}"
+    assert best_to == e5, f"Should capture rook on e5, captured square {best_to}"
+    expected = t.piece_value(cpu, W_ROOK) + 1  # + centre bonus (e file)
+    assert best_score == expected, \
+        f"Score should be {expected} (rook + centre bonus), got {best_score}"
 
     print("  PASS: capture priority (prefers high value)")
 
@@ -1301,6 +1310,10 @@ def test_en_passant_ai_capture():
     assert cpu.rb(BEST_FROM) == a4 and cpu.rb(BEST_TO) == b3, \
         (f"AI should choose a4xb3 ep ({a4}->{b3}), "
          f"got {cpu.rb(BEST_FROM)}->{cpu.rb(BEST_TO)}")
+    # ep is a real pawn capture and must be priced as one (b file: no bonus)
+    expected = t.piece_value(cpu, W_PAWN)
+    assert cpu.rb(BEST_SCORE) == expected, \
+        f"ep capture should score {expected} (pawn value), got {cpu.rb(BEST_SCORE)}"
 
     # Execute it (same do_move path ai_make_move uses)
     cpu.wb(SIDE, 8)
@@ -1386,6 +1399,37 @@ def test_en_passant_state():
     assert cpu.rb(EP_SQUARE) == 0xFF, "non-pawn move must clear ep square"
 
     print("  PASS: en passant state transitions")
+
+
+def test_capture_beats_centre_quiet():
+    """A free pawn must outbid a quiet centre move.
+
+    With the classic 1/3/3/5/9 values, a quiet move to the d/e files
+    scored 2 (1 + centre bonus) while capturing a pawn scored 1, so
+    the AI declined free material. The scaled value table makes the
+    smallest capture (pawn, 3) beat the biggest quiet score (2).
+    """
+    t = ChessTest()
+    cpu = t.setup_cpu()
+    t.clear_board(cpu)
+
+    b5, a4 = t.sq('b', 5), t.sq('a', 4)
+    t.set_piece(cpu, b5, B_PAWN)            # can capture a4 (no centre bonus)
+    t.set_piece(cpu, a4, W_PAWN)
+    t.set_piece(cpu, t.sq('e', 7), B_PAWN)  # has the quiet centre move e7-e6
+    t.set_piece(cpu, t.sq('a', 8), B_KING)
+    t.set_piece(cpu, t.sq('h', 1), W_KING)
+    cpu.wb(EP_SQUARE, 0xFF)
+    cpu.wb(SIDE, 8)
+
+    t.call_routine(cpu, t.find_think(cpu))
+
+    best_from, best_to = cpu.rb(BEST_FROM), cpu.rb(BEST_TO)
+    assert (best_from, best_to) == (b5, a4), \
+        (f"AI should take the free pawn b5xa4 ({b5}->{a4}), "
+         f"got {best_from}->{best_to}")
+
+    print("  PASS: capture outbids quiet centre move")
 
 
 def test_ai_no_move_passes():
@@ -1476,6 +1520,7 @@ def run_all_tests():
         ("En Passant (AI capture)", test_en_passant_ai_capture),
         ("En Passant (expires)", test_en_passant_expires),
         ("En Passant (state transitions)", test_en_passant_state),
+        ("Capture Beats Centre Quiet", test_capture_beats_centre_quiet),
         ("AI No Move (memory safety)", test_ai_no_move_passes),
     ]
 
