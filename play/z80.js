@@ -67,6 +67,7 @@ class Z80 {
         if (result8 === 0) this.f |= this.FLAG_Z;
         if (result8 & 0x80) this.f |= this.FLAG_S;
         if (result > 0xFF) this.f |= this.FLAG_C;
+        if (((a ^ b ^ 0x80) & (a ^ result)) & 0x80) this.f |= this.FLAG_PV;
         if (((a & 0x0F) + (b & 0x0F) + carry) > 0x0F) this.f |= this.FLAG_H;
         return result8;
     }
@@ -78,6 +79,7 @@ class Z80 {
         if (result8 === 0) this.f |= this.FLAG_Z;
         if (result8 & 0x80) this.f |= this.FLAG_S;
         if (result < 0) this.f |= this.FLAG_C;
+        if (((a ^ b) & (a ^ result)) & 0x80) this.f |= this.FLAG_PV;
         if (((a & 0x0F) - (b & 0x0F) - carry) < 0) this.f |= this.FLAG_H;
         return result8;
     }
@@ -86,6 +88,10 @@ class Z80 {
         this.f = 0;
         if (result === 0) this.f |= this.FLAG_Z;
         if (result & 0x80) this.f |= this.FLAG_S;
+        // P/V = even parity
+        let bits = result;
+        bits ^= bits >> 4; bits ^= bits >> 2; bits ^= bits >> 1;
+        if ((bits & 1) === 0) this.f |= this.FLAG_PV;
     }
 
     setFlagsInc(val) {
@@ -223,7 +229,7 @@ class Z80 {
         if (op === 0x09 || op === 0x19 || op === 0x29 || op === 0x39) {
             let val = op === 0x09 ? this.bc() : op === 0x19 ? this.de() : op === 0x29 ? this.hl() : this.sp;
             const result = this.hl() + val;
-            this.f &= ~(this.FLAG_C | this.FLAG_N);
+            this.f &= ~(this.FLAG_C | this.FLAG_N | this.FLAG_H);
             if (result > 0xFFFF) this.f |= this.FLAG_C;
             this.setHL(result & 0xFFFF);
             return;
@@ -277,10 +283,10 @@ class Z80 {
         }
 
         // Rotate A
-        if (op === 0x07) { const c = (this.a >> 7) & 1; this.a = ((this.a << 1) | c) & 0xFF; this.f = (this.f & ~this.FLAG_C) | (c ? this.FLAG_C : 0); return; }
-        if (op === 0x0F) { const c = this.a & 1; this.a = ((this.a >> 1) | (c << 7)) & 0xFF; this.f = (this.f & ~this.FLAG_C) | (c ? this.FLAG_C : 0); return; }
-        if (op === 0x17) { const c = (this.a >> 7) & 1; this.a = ((this.a << 1) | (this.getFlag(this.FLAG_C) ? 1 : 0)) & 0xFF; this.f = (this.f & ~this.FLAG_C) | (c ? this.FLAG_C : 0); return; }
-        if (op === 0x1F) { const c = this.a & 1; this.a = ((this.a >> 1) | ((this.getFlag(this.FLAG_C) ? 1 : 0) << 7)) & 0xFF; this.f = (this.f & ~this.FLAG_C) | (c ? this.FLAG_C : 0); return; }
+        if (op === 0x07) { const c = (this.a >> 7) & 1; this.a = ((this.a << 1) | c) & 0xFF; this.f = (this.f & ~(this.FLAG_C | this.FLAG_N | this.FLAG_H)) | (c ? this.FLAG_C : 0); return; }
+        if (op === 0x0F) { const c = this.a & 1; this.a = ((this.a >> 1) | (c << 7)) & 0xFF; this.f = (this.f & ~(this.FLAG_C | this.FLAG_N | this.FLAG_H)) | (c ? this.FLAG_C : 0); return; }
+        if (op === 0x17) { const c = (this.a >> 7) & 1; this.a = ((this.a << 1) | (this.getFlag(this.FLAG_C) ? 1 : 0)) & 0xFF; this.f = (this.f & ~(this.FLAG_C | this.FLAG_N | this.FLAG_H)) | (c ? this.FLAG_C : 0); return; }
+        if (op === 0x1F) { const c = this.a & 1; this.a = ((this.a >> 1) | ((this.getFlag(this.FLAG_C) ? 1 : 0) << 7)) & 0xFF; this.f = (this.f & ~(this.FLAG_C | this.FLAG_N | this.FLAG_H)) | (c ? this.FLAG_C : 0); return; }
 
         // CPL, SCF, CCF
         if (op === 0x2F) { this.a = (~this.a) & 0xFF; this.f |= this.FLAG_N | this.FLAG_H; return; }

@@ -289,6 +289,57 @@ console.log('\n=== Test 8: index.html wires an on-screen DEL key ===');
     }
 }
 
+// --- Test 9: ALU flag semantics match the Python reference ---
+// The JS core historically skipped P/V (overflow/parity) and left N/H
+// stale on ADD HL / rotates. Nothing in the game tests those flags
+// *today*, but a future opcode that does would diverge silently.
+console.log('\n=== Test 9: ALU flag semantics (P/V, H, N) ===');
+{
+    const cpu = new Z80();
+    const C = cpu.FLAG_C, N = cpu.FLAG_N, PV = cpu.FLAG_PV,
+          H = cpu.FLAG_H, Z = cpu.FLAG_Z, S = cpu.FLAG_S;
+    let ok = true;
+    const check = (desc, actual, expected) => {
+        if (!assert(actual === expected,
+            `${desc}: flags 0x${actual.toString(16)}, expected 0x${expected.toString(16)}`)) ok = false;
+    };
+
+    // ADD overflow: 0x7F + 1 = 0x80 sets S, PV, H
+    cpu.setFlagsAdd(0x7F, 0x01);
+    check('ADD 7F+01', cpu.f, S | PV | H);
+
+    // SUB overflow: 0x80 - 1 = 0x7F sets PV, H (plus N for subtraction)
+    cpu.setFlagsSub(0x80, 0x01);
+    check('SUB 80-01', cpu.f, N | PV | H);
+
+    // CP equal: Z and N only
+    cpu.setFlagsSub(0x42, 0x42);
+    check('CP 42,42', cpu.f, N | Z);
+
+    // Logic parity: 0x03 has even parity -> PV; 0x01 odd -> no PV
+    cpu.setFlagsLogic(0x03);
+    check('LOGIC 03', cpu.f, PV);
+    cpu.setFlagsLogic(0x01);
+    check('LOGIC 01', cpu.f, 0);
+
+    // ADD HL,DE must clear H (and N), not just N
+    cpu.f = N | H;
+    cpu.setHL(0x1000); cpu.setDE(0x0100);
+    cpu.wb(0x5000, 0x19); cpu.pc = 0x5000; cpu.step();
+    check('ADD HL,DE', cpu.f & (N | H | C), 0);
+
+    // RRCA must clear N and H, keep only its carry
+    cpu.f = N | H;
+    cpu.a = 0x01;
+    cpu.wb(0x5001, 0x0F); cpu.pc = 0x5001; cpu.step();
+    check('RRCA', cpu.f & (N | H | C), C);
+
+    if (ok) {
+        console.log('  flag semantics match the Python reference');
+        passed++;
+    }
+}
+
 // --- Summary ---
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
 process.exit(failed > 0 ? 1 : 0);
