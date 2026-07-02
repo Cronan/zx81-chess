@@ -826,14 +826,25 @@ cpc_take:   call    score_move
             call    try_move
 cpc_bad:    ret
 
-; --- Knight move generation ---
-; Knights have 8 possible L-shaped moves.
-; They can jump over pieces (the only piece that can!)
+; --- Knight and King move generation ---
+; Both are single-step generators over an 8-entry direction table;
+; the only differences are the table and the column-delta limit
+; (knight files change by up to 2, king by 1). One shared body,
+; parameterised on HL (table) and D (delta limit). D is free here:
+; the piece type it held is not needed once we've dispatched, and
+; every helper below preserves it.
 
 gen_knight:
             ld      hl, knight_dirs
+            ld      d, 3            ; Column delta must be < 3
+            jr      gen_step
+gen_king:
+            ld      hl, king_dirs
+            ld      d, 2            ; Column delta must be < 2
+
+gen_step:
             ld      b, 8            ; 8 possible moves
-gn_loop:    push    bc
+gst_loop:   push    bc
             push    hl
 
             ld      a, (hl)         ; Get direction offset
@@ -844,62 +855,27 @@ gn_loop:    push    bc
             add     a, c            ; Add offset (may wrap/overflow)
             ; Check bounds: 0 <= result <= 63
             cp      64
-            jr      nc, gn_skip     ; Off the board (unsigned compare)
+            jr      nc, gst_skip    ; Off the board (unsigned compare)
 
-            ; Check column didn't wrap too far
-            ; For knights, column can change by 1 or 2
+            ; Check column didn't wrap around the board edge
             ld      c, a            ; C = target square
             call    check_col_delta
-            cp      3               ; Delta must be 0, 1, or 2
-            jr      nc, gn_skip     ; Column wrapped!
+            cp      d               ; Against this piece's limit
+            jr      nc, gst_skip    ; Column wrapped!
 
             ; Check target square
             call    get_board_sq    ; A = piece at target
             bit     3, a            ; Own (Black) piece?
-            jr      nz, gn_skip     ; Can't capture own piece
+            jr      nz, gst_skip    ; Can't capture own piece
 
             ; Score the move
             call    score_move      ; A = score for this move
             call    try_move        ; Record if best
 
-gn_skip:    pop     hl
+gst_skip:   pop     hl
             pop     bc
             inc     hl              ; Next direction
-            djnz    gn_loop
-            jp      think_next
-
-; --- King move generation ---
-; Same as Queen but limited to 1 step in each direction.
-
-gen_king:
-            ld      hl, king_dirs
-            ld      b, 8            ; 8 directions
-gk_loop:    push    bc
-            push    hl
-
-            ld      a, (hl)         ; Direction offset
-            ld      c, a
-            ld      a, e            ; Current square
-            add     a, c
-            cp      64
-            jr      nc, gk_skip     ; Off board
-
-            ld      c, a
-            call    check_col_delta
-            cp      2               ; King moves max 1 column
-            jr      nc, gk_skip
-
-            call    get_board_sq
-            bit     3, a
-            jr      nz, gk_skip     ; Own piece
-
-            call    score_move
-            call    try_move
-
-gk_skip:    pop     hl
-            pop     bc
-            inc     hl
-            djnz    gk_loop
+            djnz    gst_loop
             jp      think_next
 
 ; --- Sliding piece move generation (Bishop, Rook, Queen) ---
