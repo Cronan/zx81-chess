@@ -16,6 +16,7 @@ PYTHON = python3
 SRC = src/chess.asm
 BIN = chess.bin
 PFILE = chess.p
+SYM = chess.sym
 
 # Hard ceiling for the assembled binary. The game must never grow
 # past this; free bytes elsewhere before adding anything new.
@@ -25,15 +26,18 @@ MAXSIZE ?= 984
 
 all: build test
 
-build: $(PFILE) hexdump.txt embed
+build: $(PFILE) $(SYM) hexdump.txt embed
 
 # The browser page embeds chess.p as base64 - regenerated, never hand-edited
 .PHONY: embed
 embed: $(PFILE) tools/update_embedded_p.py
 	$(PYTHON) tools/update_embedded_p.py
 
-$(BIN): $(SRC)
-	$(ASM) --bin $(SRC) $(BIN)
+# chess.sym is the pasmo symbol table - the tests resolve routine
+# addresses from it instead of hard-coding offsets. Grouped target
+# (&:) because one pasmo run produces both files.
+$(BIN) $(SYM) &: $(SRC)
+	$(ASM) --bin $(SRC) $(BIN) $(SYM)
 	@actual=$$(wc -c < $(BIN)); \
 	echo "Assembled: $$actual bytes (limit $(MAXSIZE))"; \
 	if [ $$actual -gt $(MAXSIZE) ]; then \
@@ -69,4 +73,4 @@ diff-test: $(PFILE)
 	$(PYTHON) tools/diff_test.py
 
 clean:
-	rm -f $(BIN) $(PFILE)
+	rm -f $(BIN) $(PFILE) $(SYM)

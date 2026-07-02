@@ -10,7 +10,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from test_harness import Z80, setup_zx81_memory, print_board_from_memory
+from test_harness import Z80, setup_zx81_memory, print_board_from_memory, load_symbols
 
 # Memory addresses (must match chess.asm)
 BOARD = 0x4082
@@ -52,8 +52,10 @@ class ChessTest:
         with open('chess.bin', 'rb') as f:
             self.code = f.read()
 
-        # Find routine addresses
-        self.start_addr = 0x4082 + 109  # After data tables
+        # Routine addresses come from the pasmo symbol table (make build),
+        # so reordering chess.asm can't silently break the locators
+        self.sym = load_symbols()
+        self.start_addr = self.sym['start']
 
     def setup_cpu(self):
         """Create fresh CPU state with code loaded."""
@@ -63,11 +65,6 @@ class ChessTest:
         cpu.sp = 0x7FFF
         cpu.max_cycles = 500_000  # Default limit to prevent hangs
         return cpu
-
-    def find_routine(self, cpu, offset_from_start):
-        """Get routine address from CALL instruction."""
-        addr = self.start_addr + offset_from_start
-        return cpu.rb(addr + 1) | (cpu.rb(addr + 2) << 8)
 
     def call_routine(self, cpu, addr):
         """Call a routine and wait for return."""
@@ -93,51 +90,24 @@ class ChessTest:
         r = rank - 1
         return r * 8 + f
 
-    def find_think(self, cpu):
-        """Find think routine address."""
-        for addr in range(self.start_addr, self.start_addr + 200):
-            if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-                cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-                return cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-        raise RuntimeError("Could not find think routine")
+    # Routine lookups (the cpu argument is kept for call-site compatibility)
+    def find_think(self, cpu=None):
+        return self.sym['think']
 
-    def find_ai_make_move(self, cpu):
-        """Find ai_make_move via the CALL right after CALL think in game_loop."""
-        for addr in range(self.start_addr, self.start_addr + 200):
-            if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-                cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-                assert cpu.rb(addr + 8) == 0xCD, "Expected CALL ai_make_move after CALL think"
-                return cpu.rb(addr+9) | (cpu.rb(addr+10) << 8)
-        raise RuntimeError("Could not find ai_make_move routine")
+    def find_ai_make_move(self, cpu=None):
+        return self.sym['ai_make_move']
 
-    def find_get_move(self, cpu):
-        """Find get_move routine address (3rd CALL from start, offset 10)."""
-        return self.find_routine(cpu, 10)
+    def find_get_move(self, cpu=None):
+        return self.sym['get_move']
 
-    def find_get_square(self, cpu):
-        """Find get_square routine address (called from get_move)."""
-        get_move = self.find_get_move(cpu)
-        # get_move starts: LD A,$76 / RST $10 / LD A,$0F / RST $10 / CALL get_square
-        # = 3E 76 D7 3E 0F D7 CD xx xx
-        call_addr = get_move + 6
-        assert cpu.rb(call_addr) == 0xCD, f"Expected CALL at get_move+6, got 0x{cpu.rb(call_addr):02x}"
-        return cpu.rb(call_addr + 1) | (cpu.rb(call_addr + 2) << 8)
+    def find_get_square(self, cpu=None):
+        return self.sym['get_square']
 
-    def find_cls_and_draw(self, cpu):
-        """Find cls_and_draw routine (2nd CALL from start, offset 3)."""
-        return self.find_routine(cpu, 3)
+    def find_cls_and_draw(self, cpu=None):
+        return self.sym['cls_and_draw']
 
-    def find_get_piece_char(self, cpu):
-        """Find get_piece_char by scanning cls_and_draw for CALL in col_loop."""
-        draw_addr = self.find_cls_and_draw(cpu)
-        # Scan forward for the CALL inside the column loop
-        for addr in range(draw_addr + 30, draw_addr + 120):
-            if cpu.rb(addr) == 0xCD:
-                target = cpu.rb(addr + 1) | (cpu.rb(addr + 2) << 8)
-                # get_piece_char starts with AND A (0xA7)
-                if cpu.rb(target) == 0xA7:
-                    return target
-        raise RuntimeError("Could not find get_piece_char routine")
+    def find_get_piece_char(self, cpu=None):
+        return self.sym['get_piece_char']
 
     def setup_cpu_with_keys(self, keys):
         """Create CPU with keyboard input queue."""
@@ -149,7 +119,7 @@ class ChessTest:
 
     def init_board(self, cpu):
         """Initialize the chess board."""
-        init_addr = self.find_routine(cpu, 0)
+        init_addr = self.sym['init_board']
         self.call_routine(cpu, init_addr)
 
 
@@ -158,7 +128,7 @@ def test_board_init():
     t = ChessTest()
     cpu = t.setup_cpu()
 
-    init_addr = t.find_routine(cpu, 0)
+    init_addr = t.sym['init_board']
     t.call_routine(cpu, init_addr)
 
     # Check white pieces (rank 1)
@@ -204,15 +174,7 @@ def test_knight_moves():
     # Run AI to generate moves
     cpu.wb(SIDE, 8)  # Black's turn
 
-    # Find think routine
-    think_addr = None
-    for addr in range(t.start_addr, t.start_addr + 200):
-        if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-            cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-            think_addr = cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-            break
-
-    assert think_addr, "Could not find think routine"
+    think_addr = t.find_think(cpu)
 
     t.call_routine(cpu, think_addr)
 
@@ -243,12 +205,7 @@ def test_knight_edge():
 
     cpu.wb(SIDE, 8)
 
-    think_addr = None
-    for addr in range(t.start_addr, t.start_addr + 200):
-        if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-            cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-            think_addr = cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-            break
+    think_addr = t.find_think(cpu)
 
     t.call_routine(cpu, think_addr)
 
@@ -277,12 +234,7 @@ def test_bishop_diagonal():
     cpu.wb(SIDE, 8)
     cpu.max_cycles = 100_000  # Limit to prevent hangs
 
-    think_addr = None
-    for addr in range(t.start_addr, t.start_addr + 200):
-        if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-            cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-            think_addr = cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-            break
+    think_addr = t.find_think(cpu)
 
     t.call_routine(cpu, think_addr)
 
@@ -311,12 +263,7 @@ def test_rook_orthogonal():
 
     cpu.wb(SIDE, 8)
 
-    think_addr = None
-    for addr in range(t.start_addr, t.start_addr + 200):
-        if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-            cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-            think_addr = cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-            break
+    think_addr = t.find_think(cpu)
 
     cpu.cycles = 0
     t.call_routine(cpu, think_addr)
@@ -346,12 +293,7 @@ def test_queen_all_directions():
 
     cpu.wb(SIDE, 8)
 
-    think_addr = None
-    for addr in range(t.start_addr, t.start_addr + 200):
-        if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-            cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-            think_addr = cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-            break
+    think_addr = t.find_think(cpu)
 
     cpu.cycles = 0
     t.call_routine(cpu, think_addr)
@@ -378,12 +320,7 @@ def test_pawn_forward():
 
     cpu.wb(SIDE, 8)
 
-    think_addr = None
-    for addr in range(t.start_addr, t.start_addr + 200):
-        if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-            cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-            think_addr = cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-            break
+    think_addr = t.find_think(cpu)
 
     t.call_routine(cpu, think_addr)
 
@@ -414,12 +351,7 @@ def test_pawn_double_move():
 
     cpu.wb(SIDE, 8)
 
-    think_addr = None
-    for addr in range(t.start_addr, t.start_addr + 200):
-        if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-            cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-            think_addr = cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-            break
+    think_addr = t.find_think(cpu)
 
     t.call_routine(cpu, think_addr)
 
@@ -451,12 +383,7 @@ def test_pawn_capture():
 
     cpu.wb(SIDE, 8)
 
-    think_addr = None
-    for addr in range(t.start_addr, t.start_addr + 200):
-        if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-            cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-            think_addr = cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-            break
+    think_addr = t.find_think(cpu)
 
     t.call_routine(cpu, think_addr)
 
@@ -483,12 +410,7 @@ def test_king_single_step():
 
     cpu.wb(SIDE, 8)
 
-    think_addr = None
-    for addr in range(t.start_addr, t.start_addr + 200):
-        if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-            cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-            think_addr = cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-            break
+    think_addr = t.find_think(cpu)
 
     t.call_routine(cpu, think_addr)
 
@@ -520,12 +442,7 @@ def test_capture_priority():
 
     cpu.wb(SIDE, 8)
 
-    think_addr = None
-    for addr in range(t.start_addr, t.start_addr + 200):
-        if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-            cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-            think_addr = cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-            break
+    think_addr = t.find_think(cpu)
 
     t.call_routine(cpu, think_addr)
 
@@ -560,12 +477,7 @@ def test_no_self_capture():
 
     cpu.wb(SIDE, 8)
 
-    think_addr = None
-    for addr in range(t.start_addr, t.start_addr + 200):
-        if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-            cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-            think_addr = cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-            break
+    think_addr = t.find_think(cpu)
 
     t.call_routine(cpu, think_addr)
 
@@ -599,7 +511,7 @@ def test_check_kings():
         return
 
     # Test with both kings present
-    init_addr = t.find_routine(cpu, 0)
+    init_addr = t.sym['init_board']
     t.call_routine(cpu, init_addr)
 
     cpu.sp = 0x7FFF
@@ -632,7 +544,7 @@ def test_move_execution():
     cpu = t.setup_cpu()
 
     # Initialize board
-    init_addr = t.find_routine(cpu, 0)
+    init_addr = t.sym['init_board']
     t.call_routine(cpu, init_addr)
 
     # Set up a move: e2 to e4
@@ -747,12 +659,7 @@ def test_slider_blocked():
 
     cpu.wb(SIDE, 8)
 
-    think_addr = None
-    for addr in range(t.start_addr, t.start_addr + 200):
-        if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-            cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-            think_addr = cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-            break
+    think_addr = t.find_think(cpu)
 
     t.call_routine(cpu, think_addr)
 
@@ -1453,7 +1360,7 @@ def test_en_passant_state():
     t = ChessTest()
     cpu = t.setup_cpu()
     make_move = _find_make_move(t, cpu)
-    init_board = t.find_routine(cpu, 0)  # 1st CALL from entry
+    init_board = t.sym['init_board']
     cpu.sp = 0x7FFF
 
     # Fresh binary image has no ep right
