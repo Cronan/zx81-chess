@@ -268,6 +268,27 @@ console.log('\n=== Test 7: tickFrames decrements FRAMES with 16-bit wrap ===');
     }
 }
 
+// --- Test 8: on-screen keyboard has a working DEL key ---
+// The page's handleKey/updateKeyboard special-case 'DEL', but for a long
+// time no key element emitted it, so touch users could not correct a
+// mistyped coordinate. Guard the wiring until a browser-level test exists.
+console.log('\n=== Test 8: index.html wires an on-screen DEL key ===');
+{
+    const fs = require('fs');
+    const path = require('path');
+    const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+
+    let ok = assert(html.includes('data-key="DEL"'),
+        'index.html should have a kb-key with data-key="DEL"');
+    if (!assert(html.includes("k === 'DEL' && pos > 0"),
+        'updateKeyboard should mark DEL valid once a character is typed')) ok = false;
+
+    if (ok) {
+        console.log('  on-screen DEL key present and handled');
+        passed++;
+    }
+}
+
 // --- Summary ---
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
 process.exit(failed > 0 ? 1 : 0);
