@@ -57,6 +57,9 @@ test: $(PFILE)
 	@echo "=== Embedded Binary Check ==="
 	$(PYTHON) tools/update_embedded_p.py --check
 	@echo ""
+	@echo "=== Opcode Coverage Check ==="
+	$(PYTHON) tools/opcode_check.py
+	@echo ""
 	@echo "=== Basic Tests ==="
 	$(PYTHON) test_harness.py
 	@echo ""
