@@ -232,6 +232,7 @@
         .reset-bar {
             display: flex;
             justify-content: center;
+            gap: 8px;
             margin-top: 8px;
         }
         .reset-btn {
@@ -247,6 +248,30 @@
             letter-spacing: 0.5px;
         }
         .reset-btn:hover { border-color: #555; color: #222; }
+        .reset-btn:disabled, .modern-new-game:disabled {
+            opacity: 0.4;
+            cursor: default;
+        }
+
+        /* === Move history === */
+        .history-panel {
+            margin: 10px auto 0;
+            max-width: 320px;
+            max-height: 120px;
+            overflow-y: auto;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 11px;
+            color: #555;
+        }
+        .history-panel ol {
+            margin: 0;
+            padding: 0 0 0 28px;
+        }
+        .history-panel li {
+            padding: 1px 0;
+            font-variant-numeric: tabular-nums;
+        }
+        .history-panel .b-move { color: #999; }
 
         /* === Footer === */
         .footer {
@@ -837,6 +862,7 @@
 
         <div class="reset-bar">
             <button class="reset-btn" id="btn-reset">NEW GAME</button>
+            <button class="reset-btn" id="btn-undo" disabled>UNDO</button>
         </div>
     </div>
     <!-- Modern view (hidden by default) -->
@@ -862,6 +888,7 @@
         <div class="modern-status" id="modern-status">Your move</div>
         <div class="modern-controls">
             <button class="modern-new-game" id="btn-modern-reset">New game</button>
+            <button class="modern-new-game" id="btn-modern-undo" disabled>Undo</button>
         </div>
         <div class="palette-row" id="palette-picker">
             <button class="palette-dot active" data-palette="classic" aria-label="Classic green board" tabindex="0">
@@ -889,6 +916,10 @@
                 </svg>
             </button>
         </div>
+    </div>
+
+    <div class="history-panel" id="history-panel" hidden>
+        <ol id="history-list" aria-label="Move history"></ol>
     </div>
 
     <div class="footer">
@@ -978,6 +1009,121 @@
 
             updateKeyboard();
         }
+
+        // --- Move history and undo ---
+        // A snapshot of board + working variables ($4082-$40C8) is taken
+        // before each player move; undo restores it, rewinding a full
+        // turn (the player's move and the AI's reply).
+        let moveHistory = [];        // {side: 'W'|'B', text: 'E2-E4'}
+        let pendingPlayerMove = null;
+        let undoStack = [];
+
+        const ENTRY_POINT = 0x40EF;
+        const STATE_BASE = 0x4082, STATE_END = 0x40C9;
+
+        function sqName(idx) {
+            return FILES[idx & 7] + String((idx >> 3) + 1);
+        }
+
+        function makeSnapshot() {
+            return {
+                mem: Array.from(cpu.memory.slice(STATE_BASE, STATE_END)),
+                lastMoveFrom, lastMoveTo,
+                history: moveHistory.length,
+            };
+        }
+
+        // Borrow the idle CPU to run one engine routine to completion.
+        // Used to re-run cls_and_draw after undo rewrites the board:
+        // the ZX81 display file is drawn by the engine, not by JS.
+        function borrowCpu(addr) {
+            const savedPC = cpu.pc, savedSP = cpu.sp;
+            cpu.push(savedPC);
+            cpu.pc = addr;
+            for (let i = 0; i < 200000; i++) {
+                if (cpu.pc === savedPC && cpu.sp === savedSP) return;
+                cpu.step();
+            }
+        }
+
+        function clsAndDrawAddr() {
+            // Entry point is CALL init_board / CALL cls_and_draw / game_loop
+            return cpu.rw(ENTRY_POINT + 4);
+        }
+
+        function undoMove() {
+            if (undoStack.length === 0) return;
+            const wasGameOver = gameOver || !running;
+            if (!wasGameOver && !waitingForInput) return;  // AI mid-think
+
+            const snap = undoStack.pop();
+            for (let i = 0; i < snap.mem.length; i++) {
+                cpu.memory[STATE_BASE + i] = snap.mem[i];
+            }
+            moveHistory.length = snap.history;
+            lastMoveFrom = snap.lastMoveFrom;
+            lastMoveTo = snap.lastMoveTo;
+            pendingPlayerMove = null;
+            moveChars = [];
+            zx81.keyBuffer = [];
+            clearModernSelection();
+
+            borrowCpu(clsAndDrawAddr());     // redraw the ZX81 screen
+            if (wasGameOver) {
+                // The engine is stuck in show_result's endless loop;
+                // re-enter the game loop, which prints its own prompt.
+                gameOver = false;
+                document.getElementById('game-over-overlay').classList.remove('visible');
+                cpu.halted = false;
+                cpu.pc = ENTRY_POINT + 6;    // game_loop
+                if (!running) {
+                    running = true;
+                    if (!frameInterval) frameInterval = setInterval(runFrame, 50);
+                }
+            } else {
+                // The engine is waiting inside get_move; put its
+                // prompt back after the redraw wiped the line.
+                zx81.printChar(0x76);        // newline
+                zx81.printChar(0x0F);        // '?'
+            }
+            waitingForInput = true;
+            thinkingStartFrame = 0;
+            lastBoardState = null;           // force modern re-render
+
+            zx81.render();
+            if (modernMode) {
+                renderModernBoard();
+                highlightLastMove(lastMoveFrom, lastMoveTo);
+            }
+            renderHistory();
+            updateMoveDisplay();
+        }
+
+        function renderHistory() {
+            const panel = document.getElementById('history-panel');
+            const list = document.getElementById('history-list');
+            panel.hidden = moveHistory.length === 0;
+            list.innerHTML = '';
+            for (let i = 0; i < moveHistory.length; i += 2) {
+                const li = document.createElement('li');
+                li.textContent = moveHistory[i].text + ' ';
+                const black = moveHistory[i + 1];
+                if (black) {
+                    const span = document.createElement('span');
+                    span.className = 'b-move';
+                    span.textContent = black.text;
+                    li.appendChild(span);
+                }
+                list.appendChild(li);
+            }
+            list.scrollTop = list.scrollHeight;
+            const canUndo = undoStack.length > 0;
+            document.getElementById('btn-undo').disabled = !canUndo;
+            document.getElementById('btn-modern-undo').disabled = !canUndo;
+        }
+
+        document.getElementById('btn-undo').onclick = undoMove;
+        document.getElementById('btn-modern-undo').onclick = undoMove;
 
         // --- Flash + haptic feedback ---
         function flashKey(el) {
@@ -1161,6 +1307,10 @@
 
         function sendMove() {
             if (moveChars.length !== 4) return;
+            // Snapshot for undo; confirmed (or rolled back) when the
+            // engine accepts or rejects the move
+            undoStack.push(makeSnapshot());
+            pendingPlayerMove = moveChars[0] + moveChars[1] + '-' + moveChars[2] + moveChars[3];
             // Track player's move for modern board highlighting
             const fromFile = FILES.indexOf(moveChars[0]);
             const fromRank = parseInt(moveChars[1]) - 1;
@@ -1212,7 +1362,13 @@
             if (!hitHalt && running) {
                 if (thinkingStartFrame === 0) {
                     thinkingStartFrame = frameCount;
-                    // Player's move applied — check if black king captured
+                    // Player's move applied — record it in the history
+                    if (pendingPlayerMove) {
+                        moveHistory.push({ side: 'W', text: pendingPlayerMove });
+                        pendingPlayerMove = null;
+                        renderHistory();
+                    }
+                    // Check if black king captured
                     const result = checkGameOver();
                     if (result) { handleGameOver(result); return; }
                 }
@@ -1225,10 +1381,42 @@
                     thinkingStartFrame = 0;
                     waitingForInput = true;
                     moveChars = [];
+                    moveHistory.push({ side: 'B', text: sqName(lastMoveFrom) + '-' + sqName(lastMoveTo) });
+                    renderHistory();
                     // AI's move applied — check if white king captured
                     const result = checkGameOver();
                     if (result) { handleGameOver(result); return; }
                 } else if (!waitingForInput && zx81.keyBuffer.length === 0) {
+                    // The engine is asking for input again without a
+                    // visible thinking pause. Either it rejected the
+                    // move, or it processed the whole turn inside one
+                    // frame - decide by comparing state to the snapshot
+                    // rather than trusting frame timing.
+                    if (pendingPlayerMove) {
+                        const snap = undoStack[undoStack.length - 1];
+                        const unchanged = snap.mem.every(
+                            (b, i) => cpu.memory[STATE_BASE + i] === b);
+                        if (unchanged) {
+                            // Rejected: the move never happened
+                            undoStack.pop();
+                            pendingPlayerMove = null;
+                            renderHistory();
+                        } else {
+                            moveHistory.push({ side: 'W', text: pendingPlayerMove });
+                            pendingPlayerMove = null;
+                            const result = checkGameOver();
+                            if (result) {
+                                renderHistory();
+                                handleGameOver(result);
+                                return;
+                            }
+                            // Game continues, so the AI replied too
+                            lastMoveFrom = cpu.memory[0x40C5];
+                            lastMoveTo = cpu.memory[0x40C6];
+                            moveHistory.push({ side: 'B', text: sqName(lastMoveFrom) + '-' + sqName(lastMoveTo) });
+                            renderHistory();
+                        }
+                    }
                     waitingForInput = true;
                     moveChars = [];
                 }
@@ -1303,6 +1491,10 @@
             lastMoveFrom = null;
             lastMoveTo = null;
             selectedSquare = null;
+            moveHistory = [];
+            undoStack = [];
+            pendingPlayerMove = null;
+            renderHistory();
             document.getElementById('game-over-overlay').classList.remove('visible');
             init();
             start();

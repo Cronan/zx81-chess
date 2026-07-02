@@ -93,7 +93,7 @@ async function main() {
 
     // --- Test 3: modern skin reflects the position ---
     console.log('\n=== Browser 3: skin toggle and board state ===');
-    await page.locator('#skin-toggle').click();
+    await page.locator('#skin-toggle').dispatchEvent('click');
     const e4 = await waitForPiece(page, 28, '#wP');   // e4 = rank 3 * 8 + file 4
     const e2 = await pieceAt(page, 12);
     ok = assert(e4 === '#wP', `e4 should hold a white pawn, got ${e4}`);
@@ -122,13 +122,53 @@ async function main() {
 
     // --- Test 5: NEW GAME resets the board ---
     console.log('\n=== Browser 5: reset ===');
-    await page.locator('#btn-modern-reset').click();
+    await page.locator('#btn-modern-reset').dispatchEvent('click');
     await waitForInputTurn(page);
     const e2again = await waitForPiece(page, 12, '#wP');
     const f3again = await pieceAt(page, 21);
     if (assert(e2again === '#wP' && f3again === null,
         `after reset e2 should be a pawn and f3 empty, got ${e2again}/${f3again}`)) {
         console.log('  reset restores the starting position');
+        passed++;
+    }
+
+    // --- Test 6: move history records and undo rewinds a full turn ---
+    console.log('\n=== Browser 6: history + undo ===');
+    await page.locator('.square[data-sq="12"]').dispatchEvent('pointerdown');  // e2
+    await page.locator('.square[data-sq="28"]').dispatchEvent('pointerdown');  // e4
+    await waitForInputTurn(page);
+    await page.waitForFunction(() =>
+        document.querySelectorAll('#history-list li').length === 1);
+    const entry = await page.locator('#history-list li').first().textContent();
+    ok = assert(entry.startsWith('E2-E4 ') && entry.length > 6,
+        `history should show E2-E4 plus the AI reply, got '${entry}'`);
+    await page.locator('#btn-modern-undo').dispatchEvent('click');
+    const e2back = await waitForPiece(page, 12, '#wP');
+    if (!assert(e2back === '#wP', `after undo, e2 should hold the pawn again, got ${e2back}`)) ok = false;
+    const histCount = await page.evaluate(() =>
+        document.querySelectorAll('#history-list li').length);
+    if (!assert(histCount === 0, `after undo, history should be empty, got ${histCount} rows`)) ok = false;
+    const undoDisabled = await page.evaluate(() =>
+        document.getElementById('btn-modern-undo').disabled);
+    if (!assert(undoDisabled, 'undo button should disable when the stack empties')) ok = false;
+    if (ok) { console.log('  history records the turn; undo rewinds it'); passed++; }
+
+    // --- Test 7: undo revives a finished game ---
+    console.log('\n=== Browser 7: undo after game over ===');
+    await page.locator('.square[data-sq="3"]').dispatchEvent('pointerdown');   // d1 queen
+    await page.locator('.square[data-sq="60"]').dispatchEvent('pointerdown');  // e8 king
+    await page.waitForFunction(() =>
+        document.getElementById('game-over-overlay').classList.contains('visible'),
+        null, { timeout: 15000 });
+    console.log('  captured the king, game over shown');
+    await page.locator('#btn-modern-undo').dispatchEvent('click');
+    await waitForInputTurn(page);
+    const kingBack = await waitForPiece(page, 60, '#bK');
+    const overlayGone = await page.evaluate(() =>
+        !document.getElementById('game-over-overlay').classList.contains('visible'));
+    if (assert(kingBack === '#bK' && overlayGone,
+        `after undo the black king should be back and overlay hidden, got ${kingBack}/${overlayGone}`)) {
+        console.log('  undo revives the game from the game-over screen');
         passed++;
     }
 

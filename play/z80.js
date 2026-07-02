@@ -24,23 +24,10 @@ class Z80 {
     }
 
     rb(addr) {
-        const val = this.memory[addr & 0xFFFF];
-        // Track if our key was read (not ff)
-        if ((addr & 0xFFFF) === 0x4025 && val !== 0xFF) {
-            this.lastKeyRead = val;
-        }
-        return val;
+        return this.memory[addr & 0xFFFF];
     }
     wb(addr, val) {
         this.memory[addr & 0xFFFF] = val & 0xFF;
-        // Track key writes
-        if ((addr & 0xFFFF) === 0x4025 && (val & 0xFF) !== 0xFF) {
-            this.lastKeyWritten = val & 0xFF;
-        }
-    }
-    debugLog(msg) {
-        const el = document.getElementById('debug');
-        if (el) el.textContent = msg + ' ' + el.textContent.substring(0, 150);
     }
     rw(addr) { return this.rb(addr) | (this.rb(addr + 1) << 8); }
     ww(addr, val) { this.wb(addr, val & 0xFF); this.wb(addr + 1, (val >> 8) & 0xFF); }
