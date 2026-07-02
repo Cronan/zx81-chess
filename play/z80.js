@@ -123,6 +123,10 @@ class Z80 {
     }
 
     step() {
+        // Instruction counter for the caller's runaway guard: drivers
+        // reset it per frame/run and bound their loops on maxCycles.
+        this.cycles++;
+
         // Check for ROM calls
         if (this.pc < 0x4000 && this.onRomCall) {
             if (this.onRomCall(this.pc)) {

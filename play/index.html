@@ -1507,6 +1507,11 @@
         // --- Emulator ---
         let frameCount = 0;
         let thinkingStartFrame = 0;
+        // Stall watchdog: this many consecutive full-budget frames with
+        // no HALT means the program is spinning (a bad build, not a long
+        // think - thinking takes a frame or two)
+        const STALL_FRAMES = 600;
+        let busyFrames = 0;
 
         function runFrame() {
             if (!running) return;
@@ -1522,7 +1527,8 @@
             // a key is still mid-input: the key is delivered but not yet
             // processed, so the board can't be inspected reliably.
             let idleHalt = false;
-            for (let i = 0; i < 100000 && running; i++) {
+            cpu.cycles = 0;   // per-frame instruction budget
+            while (cpu.cycles < cpu.maxCycles && running) {
                 if (cpu.pc === 0) { running = false; break; }
                 const result = cpu.step();
                 if (result === 'halt') {
@@ -1541,6 +1547,17 @@
             }
 
             frameCount++;
+
+            // Runaway guard: stop a program that never comes back to
+            // HALT instead of burning the tab's CPU forever
+            busyFrames = hitHalt ? 0 : busyFrames + 1;
+            if (busyFrames > STALL_FRAMES && running) {
+                running = false;
+                if (frameInterval) { clearInterval(frameInterval); frameInterval = null; }
+                document.getElementById('status').textContent =
+                    'Engine stalled at $' + cpu.pc.toString(16);
+                return;
+            }
 
             if (!hitHalt && running) {
                 // A frame with no HALT means the engine is busy. That is
@@ -1650,6 +1667,8 @@
 
             cpu.sp = 0x7FFF;
             cpu.pc = 0x40EF;
+            cpu.maxCycles = 100000;  // per-frame instruction budget
+            busyFrames = 0;
             cpu.ww(0x4025, 0xFFFF);
 
             updateMoveDisplay();

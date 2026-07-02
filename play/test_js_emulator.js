@@ -340,6 +340,28 @@ console.log('\n=== Test 9: ALU flag semantics (P/V, H, N) ===');
     }
 }
 
+// --- Test 10: cycle counter powers a runaway guard ---
+// cycles/maxCycles were declared but never maintained, so drivers had
+// no way to bound a spinning program. step() now counts instructions.
+console.log('\n=== Test 10: cycle counting bounds a runaway program ===');
+{
+    const cpu = new Z80();
+    cpu.wb(0x5000, 0x18); cpu.wb(0x5001, 0xFE);  // JR $ - spins forever
+    cpu.pc = 0x5000;
+    cpu.cycles = 0;
+    cpu.maxCycles = 5000;
+    let steps = 0;
+    while (cpu.cycles < cpu.maxCycles) { cpu.step(); steps++; }
+    let ok = assert(steps === 5000, `budget of 5000 should stop after 5000 steps, ran ${steps}`);
+    if (!assert(cpu.pc === 0x5000 || cpu.pc === 0x5002 - 2,
+        `JR $ should stay at 0x5000, pc = 0x${cpu.pc.toString(16)}`)) ok = false;
+
+    if (ok) {
+        console.log('  a spinning program exhausts its budget instead of hanging');
+        passed++;
+    }
+}
+
 // --- Summary ---
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
 process.exit(failed > 0 ? 1 : 0);
