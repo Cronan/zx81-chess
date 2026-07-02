@@ -1,0 +1,140 @@
+#!/usr/bin/env node
+/**
+ * Browser smoke test for play/index.html, driven by Playwright.
+ *
+ * The Node tests (test_js_emulator.js) exercise the Z80 core directly;
+ * this is the only coverage for the page's inline script - input
+ * assembly, the on-screen keyboard (including DEL), the skin toggle,
+ * and the modern click-to-move board.
+ *
+ * The browser does NOT pin FRAMES, so the AI's tie-break is genuinely
+ * random - assertions here must hold for any legal AI reply.
+ *
+ * Run: make browser-test   (needs `npm install playwright` + chromium)
+ */
+
+const path = require('path');
+const { chromium } = require('playwright');
+
+let passed = 0, failed = 0;
+
+function assert(cond, msg) {
+    if (!cond) {
+        console.log(`  FAIL: ${msg}`);
+        failed++;
+        return false;
+    }
+    return true;
+}
+
+async function pressKey(page, key) {
+    const el = page.locator(`.kb-key[data-key="${key}"]`);
+    await page.waitForFunction(
+        (k) => document.querySelector(`.kb-key[data-key="${k}"]`).classList.contains('valid'),
+        key);
+    await el.dispatchEvent('pointerdown');
+}
+
+async function waitForInputTurn(page) {
+    // s0 shows the 'active' cursor class whenever it's the player's move
+    await page.waitForFunction(
+        () => document.getElementById('s0').className.includes('active'),
+        null, { timeout: 15000 });
+}
+
+async function pieceAt(page, sq) {
+    return page.evaluate((s) => {
+        const use = document.querySelector(`.square[data-sq="${s}"] use`);
+        return use ? use.getAttribute('href') : null;
+    }, sq);
+}
+
+async function waitForPiece(page, sq, expected) {
+    // The modern board re-renders on the 50ms frame tick - wait for it
+    try {
+        await page.waitForFunction(([s, exp]) => {
+            const use = document.querySelector(`.square[data-sq="${s}"] use`);
+            return (use ? use.getAttribute('href') : null) === exp;
+        }, [sq, expected], { timeout: 5000 });
+        return expected;
+    } catch (e) {
+        return pieceAt(page, sq);
+    }
+}
+
+async function main() {
+    // CHROMIUM_PATH lets environments with a system chromium skip
+    // `npx playwright install` (CI installs the matching browser).
+    const browser = await chromium.launch(
+        process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
+    const page = await browser.newPage();
+    await page.goto('file://' + path.join(__dirname, 'index.html'));
+
+    // --- Test 1: page boots into a running game ---
+    console.log('\n=== Browser 1: page loads and waits for input ===');
+    await waitForInputTurn(page);
+    console.log('  game auto-started, player to move');
+    passed++;
+
+    // --- Test 2: on-screen typing with DEL correction (ZX81 skin) ---
+    console.log('\n=== Browser 2: type E2, DEL, then complete E2E4 ===');
+    await pressKey(page, 'E');
+    await pressKey(page, '2');
+    let s1 = await page.locator('#s1').textContent();
+    let ok = assert(s1 === '2', `slot s1 should show '2', got '${s1}'`);
+    await pressKey(page, 'DEL');
+    s1 = await page.locator('#s1').textContent();
+    if (!assert(s1 === '_', `after DEL, slot s1 should be '_', got '${s1}'`)) ok = false;
+    await pressKey(page, '2');
+    await pressKey(page, 'E');
+    await pressKey(page, '4');   // 4th char auto-sends the move
+    await waitForInputTurn(page);  // AI has replied
+    if (ok) { console.log('  DEL corrects input; move was sent and AI replied'); passed++; }
+
+    // --- Test 3: modern skin reflects the position ---
+    console.log('\n=== Browser 3: skin toggle and board state ===');
+    await page.locator('#skin-toggle').click();
+    const e4 = await waitForPiece(page, 28, '#wP');   // e4 = rank 3 * 8 + file 4
+    const e2 = await pieceAt(page, 12);
+    ok = assert(e4 === '#wP', `e4 should hold a white pawn, got ${e4}`);
+    if (!assert(e2 === null, `e2 should be empty after E2E4, got ${e2}`)) ok = false;
+    const counts = await page.evaluate(() => {
+        const uses = [...document.querySelectorAll('.square use')];
+        return {
+            white: uses.filter(u => u.getAttribute('href').startsWith('#w')).length,
+            black: uses.filter(u => u.getAttribute('href').startsWith('#b')).length,
+        };
+    });
+    if (!assert(counts.white === 16 && counts.black === 16,
+        `expected 16 v 16 pieces after one quiet turn, got ${counts.white} v ${counts.black}`)) ok = false;
+    if (ok) { console.log('  modern board shows the position (16 v 16, wP on e4)'); passed++; }
+
+    // --- Test 4: modern click-to-move ---
+    console.log('\n=== Browser 4: click-to-move G1 -> F3 ===');
+    await page.locator('.square[data-sq="6"]').dispatchEvent('pointerdown');   // g1
+    await page.locator('.square[data-sq="21"]').dispatchEvent('pointerdown');  // f3
+    await waitForInputTurn(page);
+    const f3 = await waitForPiece(page, 21, '#wN');
+    if (assert(f3 === '#wN', `f3 should hold the white knight, got ${f3}`)) {
+        console.log('  knight moved by clicking, AI replied');
+        passed++;
+    }
+
+    // --- Test 5: NEW GAME resets the board ---
+    console.log('\n=== Browser 5: reset ===');
+    await page.locator('#btn-modern-reset').click();
+    await waitForInputTurn(page);
+    const e2again = await waitForPiece(page, 12, '#wP');
+    const f3again = await pieceAt(page, 21);
+    if (assert(e2again === '#wP' && f3again === null,
+        `after reset e2 should be a pawn and f3 empty, got ${e2again}/${f3again}`)) {
+        console.log('  reset restores the starting position');
+        passed++;
+    }
+
+    await browser.close();
+    console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
+    process.exit(failed > 0 ? 1 : 0);
+}
+
+main().catch((err) => { console.error(err); process.exit(1); });

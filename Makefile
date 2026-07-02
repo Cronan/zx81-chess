@@ -22,7 +22,7 @@ SYM = chess.sym
 # past this; free bytes elsewhere before adding anything new.
 MAXSIZE ?= 984
 
-.PHONY: all build test diff-test clean
+.PHONY: all build test diff-test browser-test clean
 
 all: build test
 
@@ -74,6 +74,12 @@ test: $(PFILE)
 
 diff-test: $(PFILE)
 	$(PYTHON) tools/diff_test.py
+
+# Browser smoke test for play/index.html. Not part of `make test`:
+# needs `npm install playwright` plus a chromium (set CHROMIUM_PATH to
+# use a system one, otherwise `npx playwright install chromium`).
+browser-test: $(PFILE)
+	node play/test_browser.js
 
 clean:
 	rm -f $(BIN) $(PFILE) $(SYM)
