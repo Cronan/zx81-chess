@@ -886,6 +886,7 @@
         <div class="reset-bar">
             <button class="reset-btn" id="btn-reset">NEW GAME</button>
             <button class="reset-btn" id="btn-undo" disabled>UNDO</button>
+            <button class="reset-btn" id="btn-resume" hidden>RESUME</button>
         </div>
     </div>
     <!-- Modern view (hidden by default) -->
@@ -914,6 +915,7 @@
             <button class="modern-new-game" id="btn-modern-undo" disabled>Undo</button>
             <button class="modern-new-game" id="btn-modern-flip" aria-pressed="false">Flip board</button>
             <button class="modern-new-game" id="btn-modern-hints" aria-pressed="false">Hints</button>
+            <button class="modern-new-game" id="btn-modern-resume" hidden>Resume</button>
         </div>
         <div class="palette-row" id="palette-picker">
             <button class="palette-dot active" data-palette="classic" aria-label="Classic green board" tabindex="0">
@@ -1076,36 +1078,23 @@
             return cpu.rw(ENTRY_POINT + 4);
         }
 
-        function undoMove() {
-            if (undoStack.length === 0) return;
-            const wasGameOver = gameOver || !running;
-            if (!wasGameOver && !waitingForInput) return;  // AI mid-think
-
-            const snap = undoStack.pop();
-            for (let i = 0; i < snap.mem.length; i++) {
-                cpu.memory[STATE_BASE + i] = snap.mem[i];
+        // Restore a game state (shared by undo and resume). The engine
+        // must be idle at its input HALT - or stuck at game over, in
+        // which case printPrompt=false and the caller re-enters game_loop.
+        function applyGameState(mem, history, lmf, lmt, printPrompt) {
+            for (let i = 0; i < mem.length; i++) {
+                cpu.memory[STATE_BASE + i] = mem[i];
             }
-            moveHistory.length = snap.history;
-            lastMoveFrom = snap.lastMoveFrom;
-            lastMoveTo = snap.lastMoveTo;
+            moveHistory = history;
+            lastMoveFrom = lmf;
+            lastMoveTo = lmt;
             pendingPlayerMove = null;
             moveChars = [];
             zx81.keyBuffer = [];
             clearModernSelection();
 
             borrowCpu(clsAndDrawAddr());     // redraw the ZX81 screen
-            if (wasGameOver) {
-                // The engine is stuck in show_result's endless loop;
-                // re-enter the game loop, which prints its own prompt.
-                gameOver = false;
-                document.getElementById('game-over-overlay').classList.remove('visible');
-                cpu.halted = false;
-                cpu.pc = ENTRY_POINT + 6;    // game_loop
-                if (!running) {
-                    running = true;
-                    if (!frameInterval) frameInterval = setInterval(runFrame, 50);
-                }
-            } else {
+            if (printPrompt) {
                 // The engine is waiting inside get_move; put its
                 // prompt back after the redraw wiped the line.
                 zx81.printChar(0x76);        // newline
@@ -1123,6 +1112,84 @@
             renderHistory();
             updateMoveDisplay();
         }
+
+        function undoMove() {
+            if (undoStack.length === 0) return;
+            const wasGameOver = gameOver || !running;
+            if (!wasGameOver && !waitingForInput) return;  // AI mid-think
+
+            const snap = undoStack.pop();
+            applyGameState(snap.mem, moveHistory.slice(0, snap.history),
+                snap.lastMoveFrom, snap.lastMoveTo, !wasGameOver);
+            if (wasGameOver) {
+                // The engine is stuck in show_result's endless loop;
+                // re-enter the game loop, which prints its own prompt.
+                gameOver = false;
+                document.getElementById('game-over-overlay').classList.remove('visible');
+                cpu.halted = false;
+                cpu.pc = ENTRY_POINT + 6;    // game_loop
+                if (!running) {
+                    running = true;
+                    if (!frameInterval) frameInterval = setInterval(runFrame, 50);
+                }
+            }
+            persistGame();
+        }
+
+        // --- Save / resume (localStorage) ---
+        // The state of the game is persisted after every completed turn.
+        // A rebuilt binary invalidates old saves via the version key.
+        let pendingResume = null;
+
+        function saveVersion() {
+            return CHESS_P.length + ':' + CHESS_P.slice(0, 32);
+        }
+
+        function persistGame() {
+            try {
+                if (moveHistory.length === 0) {
+                    localStorage.removeItem('chess-save');
+                    return;
+                }
+                localStorage.setItem('chess-save', JSON.stringify({
+                    v: saveVersion(),
+                    mem: Array.from(cpu.memory.slice(STATE_BASE, STATE_END)),
+                    history: moveHistory,
+                    lastMoveFrom, lastMoveTo,
+                }));
+            } catch (e) {}
+        }
+
+        function loadSavedGame() {
+            try {
+                const raw = localStorage.getItem('chess-save');
+                if (!raw) return null;
+                const s = JSON.parse(raw);
+                if (s.v !== saveVersion()) return null;
+                if (!Array.isArray(s.mem) || s.mem.length !== STATE_END - STATE_BASE) return null;
+                if (!Array.isArray(s.history) || s.history.length === 0) return null;
+                return s;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function setResumeVisible(visible) {
+            document.getElementById('btn-resume').hidden = !visible;
+            document.getElementById('btn-modern-resume').hidden = !visible;
+        }
+
+        function resumeSavedGame() {
+            const saved = loadSavedGame();
+            setResumeVisible(false);
+            if (!saved) return;
+            // Applied from runFrame once the engine idles at its input
+            // HALT - applying mid-boot would be undone by init_board.
+            pendingResume = saved;
+        }
+
+        document.getElementById('btn-resume').onclick = resumeSavedGame;
+        document.getElementById('btn-modern-resume').onclick = resumeSavedGame;
 
         function renderHistory() {
             const panel = document.getElementById('history-panel');
@@ -1297,6 +1364,8 @@
         function handleGameOver(result) {
             running = false;
             gameOver = true;
+            try { localStorage.removeItem('chess-save'); } catch (e) {}
+            setResumeVisible(false);
             if (frameInterval) { clearInterval(frameInterval); frameInterval = null; }
             zx81.render();
             if (modernMode) {
@@ -1413,6 +1482,8 @@
 
         function sendMove() {
             if (moveChars.length !== 4) return;
+            // A move supersedes any offered resume
+            setResumeVisible(false);
             // Snapshot for undo; confirmed (or rolled back) when the
             // engine accepts or rejects the move
             undoStack.push(makeSnapshot());
@@ -1446,6 +1517,11 @@
             zx81.tickFrames();
 
             let hitHalt = false;
+            // idleHalt: the engine HALTed and there was NO key to give
+            // it - it is truly waiting at wait_key. A HALT that consumed
+            // a key is still mid-input: the key is delivered but not yet
+            // processed, so the board can't be inspected reliably.
+            let idleHalt = false;
             for (let i = 0; i < 100000 && running; i++) {
                 if (cpu.pc === 0) { running = false; break; }
                 const result = cpu.step();
@@ -1454,6 +1530,7 @@
                     cpu.ww(0x4025, key !== 0xFF ? key : 0xFFFF);
                     cpu.halted = false;
                     hitHalt = true;
+                    idleHalt = (key === 0xFF);
                     break;
                 }
                 if (result === 'error') {
@@ -1466,19 +1543,21 @@
             frameCount++;
 
             if (!hitHalt && running) {
-                if (thinkingStartFrame === 0) {
+                // A frame with no HALT means the engine is busy. That is
+                // "thinking" only if we actually sent it a move - during
+                // boot the engine is busy drawing, and treating that as
+                // thinking used to invent a turn from stale state.
+                if (thinkingStartFrame === 0 && pendingPlayerMove) {
                     thinkingStartFrame = frameCount;
                     // Player's move applied — record it in the history
-                    if (pendingPlayerMove) {
-                        moveHistory.push({ side: 'W', text: pendingPlayerMove });
-                        pendingPlayerMove = null;
-                        renderHistory();
-                    }
+                    moveHistory.push({ side: 'W', text: pendingPlayerMove });
+                    pendingPlayerMove = null;
+                    renderHistory();
                     // Check if black king captured
                     const result = checkGameOver();
                     if (result) { handleGameOver(result); return; }
+                    waitingForInput = false;
                 }
-                waitingForInput = false;
             } else if (hitHalt) {
                 if (thinkingStartFrame > 0) {
                     // Computer just finished thinking; read its move
@@ -1489,10 +1568,11 @@
                     moveChars = [];
                     moveHistory.push({ side: 'B', text: sqName(lastMoveFrom) + '-' + sqName(lastMoveTo) });
                     renderHistory();
+                    persistGame();
                     // AI's move applied — check if white king captured
                     const result = checkGameOver();
                     if (result) { handleGameOver(result); return; }
-                } else if (!waitingForInput && zx81.keyBuffer.length === 0) {
+                } else if (!waitingForInput && idleHalt) {
                     // The engine is asking for input again without a
                     // visible thinking pause. Either it rejected the
                     // move, or it processed the whole turn inside one
@@ -1521,10 +1601,19 @@
                             lastMoveTo = cpu.memory[0x40C6];
                             moveHistory.push({ side: 'B', text: sqName(lastMoveFrom) + '-' + sqName(lastMoveTo) });
                             renderHistory();
+                            persistGame();
                         }
                     }
                     waitingForInput = true;
                     moveChars = [];
+                }
+                // A resume is applied only here, when the engine has just
+                // HALTed with no keys - i.e. it is idle at wait_key
+                if (pendingResume && idleHalt && thinkingStartFrame === 0) {
+                    const s = pendingResume;
+                    pendingResume = null;
+                    applyGameState(s.mem, s.history, s.lastMoveFrom, s.lastMoveTo, true);
+                    return;
                 }
             }
 
@@ -1555,7 +1644,9 @@
             moveChars = [];
             frameCount = 0;
             thinkingStartFrame = 0;
-            waitingForInput = true;
+            // Not until the engine reaches its first input HALT - typing
+            // during boot must not be possible
+            waitingForInput = false;
 
             cpu.sp = 0x7FFF;
             cpu.pc = 0x40EF;
@@ -1600,7 +1691,10 @@
             moveHistory = [];
             undoStack = [];
             pendingPlayerMove = null;
+            pendingResume = null;
             renderHistory();
+            // A saved game (from before the reset) can still be resumed
+            setResumeVisible(!!loadSavedGame());
             document.getElementById('game-over-overlay').classList.remove('visible');
             init();
             start();
@@ -1758,9 +1852,10 @@
         // --- Modern new game ---
         document.getElementById('btn-modern-reset').onclick = resetGame;
 
-        // Auto-start on load
+        // Auto-start on load; offer to resume a saved game
         init();
         start();
+        setResumeVisible(!!loadSavedGame());
     </script>
 </body>
 </html>

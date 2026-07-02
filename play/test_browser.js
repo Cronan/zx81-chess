@@ -232,6 +232,27 @@ async function main() {
     if (!assert(hints === 0, `hints off should show no dots, got ${hints}`)) ok = false;
     if (ok) { console.log('  hints show real pawn moves, clear on move, respect toggle'); passed++; }
 
+    // --- Test 10: game persists across a reload and resumes ---
+    console.log('\n=== Browser 10: save + resume across reload ===');
+    // Test 9 ended after a completed E2-E4 turn, so a save exists
+    await page.reload();
+    await waitForInputTurn(page);
+    const resumeVisible = await page.evaluate(() =>
+        !document.getElementById('btn-modern-resume').hidden);
+    ok = assert(resumeVisible, 'resume button should appear when a save exists');
+    // Fresh boot starts from the initial position...
+    const freshE4 = await pieceAt(page, 28);
+    if (!assert(freshE4 === null, `fresh boot should not replay the save, e4 = ${freshE4}`)) ok = false;
+    // ...and resuming brings the game back
+    await page.evaluate(() => document.getElementById('skin-toggle').click());
+    await page.locator('#btn-modern-resume').dispatchEvent('click');
+    const resumedE4 = await waitForPiece(page, 28, '#wP');
+    if (!assert(resumedE4 === '#wP', `resume should restore the pawn on e4, got ${resumedE4}`)) ok = false;
+    const resumedHist = await page.evaluate(() =>
+        document.querySelectorAll('#history-list li').length);
+    if (!assert(resumedHist === 1, `resume should restore the history, got ${resumedHist} rows`)) ok = false;
+    if (ok) { console.log('  saved game survives reload and resumes on demand'); passed++; }
+
     await browser.close();
     console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
     process.exit(failed > 0 ? 1 : 0);
