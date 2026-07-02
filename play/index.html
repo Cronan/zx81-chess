@@ -436,6 +436,18 @@
             cursor: pointer;
             transition: background-color 0.3s ease;
         }
+        /* Legal-destination hints (optional, off by default) */
+        .modern-board .square.hint::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            margin: auto;
+            width: 24%;
+            height: 24%;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.22);
+            pointer-events: none;
+        }
         .modern-board .square.light { background: var(--sq-light); }
         .modern-board .square.dark { background: var(--sq-dark); }
         .modern-board .square.selected.light { background: var(--sq-sel-light); }
@@ -901,6 +913,7 @@
             <button class="modern-new-game" id="btn-modern-reset">New game</button>
             <button class="modern-new-game" id="btn-modern-undo" disabled>Undo</button>
             <button class="modern-new-game" id="btn-modern-flip" aria-pressed="false">Flip board</button>
+            <button class="modern-new-game" id="btn-modern-hints" aria-pressed="false">Hints</button>
         </div>
         <div class="palette-row" id="palette-picker">
             <button class="palette-dot active" data-palette="classic" aria-label="Classic green board" tabindex="0">
@@ -1298,6 +1311,78 @@
                 modernSquares[selectedSquare].classList.remove('selected');
             }
             selectedSquare = null;
+            clearHints();
+        }
+
+        // --- Legal-destination hints (optional) ---
+        // The engine plays an honour system - it validates only that the
+        // source is White and the destination isn't. These hints are a
+        // JS-side overlay of the real chess moves; they never block input,
+        // so the authentic anything-goes behaviour stays the default.
+        let hintsOn = false;
+
+        function clearHints() {
+            for (const sq of modernSquares) sq.classList.remove('hint');
+        }
+
+        function legalDests(from) {
+            const board = (i) => cpu.memory[BOARD_BASE + i];
+            const piece = board(from), ptype = piece & 0x07;
+            if (ptype === 0 || (piece & 0x08)) return [];
+            const file = from & 7, rank = from >> 3;
+            const isWhiteAt = (i) => { const p = board(i); return p !== 0 && !(p & 0x08); };
+            const dests = [];
+
+            if (ptype === 1) {                       // pawn: north, captures NE/NW, ep
+                const fwd = from + 8;
+                if (fwd < 64 && board(fwd) === 0) {
+                    dests.push(fwd);
+                    if (rank === 1 && board(from + 16) === 0) dests.push(from + 16);
+                }
+                for (const d of [7, 9]) {
+                    const t = from + d;
+                    if (t < 64 && Math.abs((t & 7) - file) === 1 &&
+                        ((board(t) & 0x08) !== 0 || t === cpu.memory[0x40C2])) {
+                        dests.push(t);
+                    }
+                }
+            } else if (ptype === 2) {                // knight
+                for (const [dr, df] of [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]]) {
+                    const r = rank + dr, f = file + df;
+                    if (r >= 0 && r < 8 && f >= 0 && f < 8 && !isWhiteAt(r * 8 + f)) {
+                        dests.push(r * 8 + f);
+                    }
+                }
+            } else if (ptype === 6) {                // king
+                for (const dr of [-1, 0, 1]) for (const df of [-1, 0, 1]) {
+                    if (dr === 0 && df === 0) continue;
+                    const r = rank + dr, f = file + df;
+                    if (r >= 0 && r < 8 && f >= 0 && f < 8 && !isWhiteAt(r * 8 + f)) {
+                        dests.push(r * 8 + f);
+                    }
+                }
+            } else {                                 // sliders
+                const dirs = [];
+                if (ptype === 3 || ptype === 5) dirs.push([1,1],[1,-1],[-1,1],[-1,-1]);
+                if (ptype === 4 || ptype === 5) dirs.push([1,0],[-1,0],[0,1],[0,-1]);
+                for (const [dr, df] of dirs) {
+                    let r = rank + dr, f = file + df;
+                    while (r >= 0 && r < 8 && f >= 0 && f < 8) {
+                        const t = r * 8 + f;
+                        if (isWhiteAt(t)) break;
+                        dests.push(t);
+                        if (board(t) !== 0) break;   // capture ends the ray
+                        r += dr; f += df;
+                    }
+                }
+            }
+            return dests;
+        }
+
+        function showHints(from) {
+            if (!hintsOn) return;
+            clearHints();
+            for (const t of legalDests(from)) modernSquares[t].classList.add('hint');
         }
 
         // --- Input handling ---
@@ -1597,6 +1682,7 @@
                 clearModernSelection();
                 selectedSquare = sqIdx;
                 modernSquares[sqIdx].classList.add('selected');
+                showHints(sqIdx);
                 handleKey(file);
                 handleKey(rank);
             } else if (moveChars.length === 2) {
@@ -1611,6 +1697,7 @@
                     clearModernSelection();
                     selectedSquare = sqIdx;
                     modernSquares[sqIdx].classList.add('selected');
+                    showHints(sqIdx);
                     handleKey(file);
                     handleKey(rank);
                     updateMoveDisplay();
@@ -1655,6 +1742,18 @@
         flipBtn.addEventListener('click', () =>
             setFlipped(!document.getElementById('modern-view').classList.contains('flipped')));
         try { if (localStorage.getItem('chess-flipped')) setFlipped(true); } catch (e) {}
+
+        // --- Hints toggle ---
+        const hintsBtn = document.getElementById('btn-modern-hints');
+        function setHints(on) {
+            hintsOn = on;
+            hintsBtn.setAttribute('aria-pressed', String(on));
+            if (!on) clearHints();
+            else if (selectedSquare !== null) showHints(selectedSquare);
+            try { localStorage.setItem('chess-hints', on ? '1' : ''); } catch (e) {}
+        }
+        hintsBtn.addEventListener('click', () => setHints(!hintsOn));
+        try { if (localStorage.getItem('chess-hints')) setHints(true); } catch (e) {}
 
         // --- Modern new game ---
         document.getElementById('btn-modern-reset').onclick = resetGame;

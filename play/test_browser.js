@@ -210,6 +210,28 @@ async function main() {
     if (!assert(kbE4 === '#wP', `keyboard-only move failed, e4 holds ${kbE4}`)) ok = false;
     if (ok) { console.log('  flip toggles, squares/keys keyboard-operable, zoom allowed'); passed++; }
 
+    // --- Test 9: legality hints toggle ---
+    console.log('\n=== Browser 9: legal-move hints ===');
+    await page.locator('#btn-modern-reset').dispatchEvent('click');
+    await waitForInputTurn(page);
+    await page.locator('#btn-modern-hints').dispatchEvent('click');   // hints on
+    await page.locator('.square[data-sq="12"]').dispatchEvent('pointerdown');  // select e2
+    let hints = await page.evaluate(() =>
+        [...document.querySelectorAll('.square.hint')].map(s => +s.dataset.sq).sort((a, b) => a - b));
+    ok = assert(JSON.stringify(hints) === JSON.stringify([20, 28]),
+        `e2 pawn hints should be e3+e4 [20,28], got [${hints}]`);
+    // Deselecting by completing a move clears the dots
+    await page.locator('.square[data-sq="28"]').dispatchEvent('pointerdown');
+    await waitForInputTurn(page);
+    hints = await page.evaluate(() => document.querySelectorAll('.square.hint').length);
+    if (!assert(hints === 0, `hints should clear after the move, got ${hints}`)) ok = false;
+    // Toggle off: selecting shows no dots
+    await page.locator('#btn-modern-hints').dispatchEvent('click');
+    await page.locator('.square[data-sq="6"]').dispatchEvent('pointerdown');   // g1 knight
+    hints = await page.evaluate(() => document.querySelectorAll('.square.hint').length);
+    if (!assert(hints === 0, `hints off should show no dots, got ${hints}`)) ok = false;
+    if (ok) { console.log('  hints show real pawn moves, clear on move, respect toggle'); passed++; }
+
     await browser.close();
     console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
     process.exit(failed > 0 ? 1 : 0);
