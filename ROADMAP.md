@@ -5,6 +5,16 @@ the browser frontend, the two emulators, the test suites, and CI (July 2026).
 Bugs first, then tests that lock the fixes in, then new features paid for out of
 freed bytes, then UI and performance polish.
 
+> **Status: executed.** All milestones landed on this branch (July 2026); see
+> `git log` and SESSION.md for what shipped. Deliberate deviations: the
+> "-2 pawn-attack penalty" stays unimplemented (it risks all-zero scores
+> colliding with the $FF no-move sentinel, at ~20 bytes for marginal
+> strength); null-move rejection turned out to be already implicit (source =
+> destination always fails the own-piece check); Milestone 5's dispatch-table
+> rewrite was skipped because the opcode-coverage probe and flag tests deliver
+> the testability rationale without rewriting a proven interpreter. Numbers
+> below (983 bytes, 37 diff positions) describe the pre-work state.
+
 Current state: `chess.bin` is **983 of 984 bytes** (1 byte of headroom), all
 tests pass (40 Python unit tests, 7 JS emulator tests, 5 differential games /
 37 positions), and there are no open GitHub issues. Any new engine feature must
