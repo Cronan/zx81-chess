@@ -9,3 +9,8 @@ __pycache__/
 
 # Temporary files
 *.tmp
+
+# Node (playwright for the browser smoke test)
+node_modules/
+package.json
+package-lock.json

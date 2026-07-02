@@ -268,6 +268,100 @@ console.log('\n=== Test 7: tickFrames decrements FRAMES with 16-bit wrap ===');
     }
 }
 
+// --- Test 8: on-screen keyboard has a working DEL key ---
+// The page's handleKey/updateKeyboard special-case 'DEL', but for a long
+// time no key element emitted it, so touch users could not correct a
+// mistyped coordinate. Guard the wiring until a browser-level test exists.
+console.log('\n=== Test 8: index.html wires an on-screen DEL key ===');
+{
+    const fs = require('fs');
+    const path = require('path');
+    const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+
+    let ok = assert(html.includes('data-key="DEL"'),
+        'index.html should have a kb-key with data-key="DEL"');
+    if (!assert(html.includes("k === 'DEL' && pos > 0"),
+        'updateKeyboard should mark DEL valid once a character is typed')) ok = false;
+
+    if (ok) {
+        console.log('  on-screen DEL key present and handled');
+        passed++;
+    }
+}
+
+// --- Test 9: ALU flag semantics match the Python reference ---
+// The JS core historically skipped P/V (overflow/parity) and left N/H
+// stale on ADD HL / rotates. Nothing in the game tests those flags
+// *today*, but a future opcode that does would diverge silently.
+console.log('\n=== Test 9: ALU flag semantics (P/V, H, N) ===');
+{
+    const cpu = new Z80();
+    const C = cpu.FLAG_C, N = cpu.FLAG_N, PV = cpu.FLAG_PV,
+          H = cpu.FLAG_H, Z = cpu.FLAG_Z, S = cpu.FLAG_S;
+    let ok = true;
+    const check = (desc, actual, expected) => {
+        if (!assert(actual === expected,
+            `${desc}: flags 0x${actual.toString(16)}, expected 0x${expected.toString(16)}`)) ok = false;
+    };
+
+    // ADD overflow: 0x7F + 1 = 0x80 sets S, PV, H
+    cpu.setFlagsAdd(0x7F, 0x01);
+    check('ADD 7F+01', cpu.f, S | PV | H);
+
+    // SUB overflow: 0x80 - 1 = 0x7F sets PV, H (plus N for subtraction)
+    cpu.setFlagsSub(0x80, 0x01);
+    check('SUB 80-01', cpu.f, N | PV | H);
+
+    // CP equal: Z and N only
+    cpu.setFlagsSub(0x42, 0x42);
+    check('CP 42,42', cpu.f, N | Z);
+
+    // Logic parity: 0x03 has even parity -> PV; 0x01 odd -> no PV
+    cpu.setFlagsLogic(0x03);
+    check('LOGIC 03', cpu.f, PV);
+    cpu.setFlagsLogic(0x01);
+    check('LOGIC 01', cpu.f, 0);
+
+    // ADD HL,DE must clear H (and N), not just N
+    cpu.f = N | H;
+    cpu.setHL(0x1000); cpu.setDE(0x0100);
+    cpu.wb(0x5000, 0x19); cpu.pc = 0x5000; cpu.step();
+    check('ADD HL,DE', cpu.f & (N | H | C), 0);
+
+    // RRCA must clear N and H, keep only its carry
+    cpu.f = N | H;
+    cpu.a = 0x01;
+    cpu.wb(0x5001, 0x0F); cpu.pc = 0x5001; cpu.step();
+    check('RRCA', cpu.f & (N | H | C), C);
+
+    if (ok) {
+        console.log('  flag semantics match the Python reference');
+        passed++;
+    }
+}
+
+// --- Test 10: cycle counter powers a runaway guard ---
+// cycles/maxCycles were declared but never maintained, so drivers had
+// no way to bound a spinning program. step() now counts instructions.
+console.log('\n=== Test 10: cycle counting bounds a runaway program ===');
+{
+    const cpu = new Z80();
+    cpu.wb(0x5000, 0x18); cpu.wb(0x5001, 0xFE);  // JR $ - spins forever
+    cpu.pc = 0x5000;
+    cpu.cycles = 0;
+    cpu.maxCycles = 5000;
+    let steps = 0;
+    while (cpu.cycles < cpu.maxCycles) { cpu.step(); steps++; }
+    let ok = assert(steps === 5000, `budget of 5000 should stop after 5000 steps, ran ${steps}`);
+    if (!assert(cpu.pc === 0x5000 || cpu.pc === 0x5002 - 2,
+        `JR $ should stay at 0x5000, pc = 0x${cpu.pc.toString(16)}`)) ok = false;
+
+    if (ok) {
+        console.log('  a spinning program exhausts its budget instead of hanging');
+        passed++;
+    }
+}
+
 // --- Summary ---
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
 process.exit(failed > 0 ? 1 : 0);

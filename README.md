@@ -8,7 +8,7 @@
 
   "KING OF THE CASTLE"
 
-  A complete chess game in 983 bytes of Z80 machine code
+  A complete chess game in 961 bytes of Z80 machine code
   Born in 1K of RAM on the Sinclair ZX81
 
   +-+-+-+-+-+-+-+-+
@@ -50,22 +50,22 @@ Or use a dedicated emulator for the authentic experience:
 
 This is a chess game for the **Sinclair ZX81** (or Timex Sinclair 1000), written in the spirit of the unexpanded 1K machine.
 
-983 bytes of hand-crafted Z80A machine code. No BASIC interpreter overhead. Just raw metal.
+961 bytes of hand-crafted Z80A machine code. No BASIC interpreter overhead. Just raw metal.
 
 The entire program - board state, display engine, player input, move execution (including en passant!), and a computer opponent with material-based evaluation - fits inside a single `REM` statement in a two-line BASIC program:
 
 ```
-1 REM ... (983 bytes of machine code hiding in here)
+1 REM ... (961 bytes of machine code hiding in here)
 2 RAND USR 16514
 ```
 
 That's it. Two lines. A game of chess.
 
-**An honesty note about "1K":** the original 1983 version fitted in the unexpanded machine's 1024 bytes. This rewrite started there too, then gained features (win messages, centre-bonus evaluation, random tie-breaking, en passant) and outgrew the boundary - the REM now ends at $4459, past the 1K limit of $43FF, so the current build needs a 2K+ (or emulated) machine. The build enforces a hard 984-byte ceiling so it can't creep further; getting back under true 1K would mean giving features back.
+**An honesty note about "1K":** the original 1983 version fitted in the unexpanded machine's 1024 bytes. This rewrite started there too, then gained features (win messages, centre-bonus evaluation, random tie-breaking, en passant, promotion-aware scoring) and outgrew the boundary - the REM now ends at $4443, past the 1K limit of $43FF, so the current build needs a 2K+ (or emulated) machine. The build enforces a hard 984-byte ceiling so it can't creep further; getting back under true 1K would mean giving features back.
 
 ---
 
-## Where the 983 Bytes Go
+## Where the 961 Bytes Go
 
 ```
 Component        Bytes   What it does
@@ -77,14 +77,14 @@ Lookup Tables      38    ██░░░░░░░░░░░░░░░░�
 Board Init         59    ████░░░░░░░░░░░░░░░░░░░░░░░  Set up the starting position
 Display           100    ██████░░░░░░░░░░░░░░░░░░░░░  Draw board to screen
 Input              86    ██████░░░░░░░░░░░░░░░░░░░░░  Read player moves from keyboard
-Move Logic        102    ███████░░░░░░░░░░░░░░░░░░░░  Execute moves, en passant, promotion
-AI Engine         423    ███████████████████████████  Generate moves, evaluate, choose
+Move Logic        105    ███████░░░░░░░░░░░░░░░░░░░░  Moves, en passant, promotion, guard
+AI Engine         398    ██████████████████████████░  Generate moves, evaluate, choose
 Game Loop & Msgs  104    ███████░░░░░░░░░░░░░░░░░░░░  Main loop, king check, win/lose
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TOTAL             983    Every byte accounted for (ceiling: 984)
+TOTAL             961    Every byte accounted for (ceiling: 984, 23 free)
 ```
 
-The AI alone - scanning pieces, generating legal moves, evaluating captures, picking the best - takes 43% of the entire program. Display and input together are another 19%. Everything else fights over what's left.
+The AI alone - scanning pieces, generating legal moves, evaluating captures, picking the best - takes 41% of the entire program. Display and input together are another 19%. Everything else fights over what's left.
 
 ---
 
@@ -134,7 +134,7 @@ See **[docs/EMULATOR.md](docs/EMULATOR.md)** for detailed emulator setup instruc
 | **Target Machine** | Sinclair ZX81 / Timex Sinclair 1000 |
 | **CPU** | Zilog Z80A @ 3.25 MHz |
 | **RAM Required** | 2K+ (the rewrite outgrew its 1K origins - see honesty note above) |
-| **Code Size** | 983 bytes of Z80 machine code (hard ceiling: 984) |
+| **Code Size** | 961 bytes of Z80 machine code (hard ceiling: 984) |
 | **Language** | Z80A assembly, hand-assembled |
 | **Board Storage** | 64 bytes inside the REM statement |
 | **AI Depth** | 1-ply with material evaluation |
@@ -219,7 +219,7 @@ zx81-chess/
 │   ├── diff_runner.js ...... JS half of the cross-emulator tests
 │   └── diff_test.py ........ Cross-emulator differential test driver
 │
-├── chess.bin ............... Assembled binary (983 bytes)
+├── chess.bin ............... Assembled binary (961 bytes)
 ├── chess.p ................. Ready-to-load ZX81 tape file
 └── hexdump.txt ............. Raw hex bytes for manual entry (auto-generated)
 ```
@@ -281,6 +281,8 @@ For context, this README file is about 9 kilobytes. The entire chess game would 
 - **[docs/ZX81-GUIDE.md](docs/ZX81-GUIDE.md)** - ZX81 technical reference and links
 - **[docs/EMULATOR.md](docs/EMULATOR.md)** - Running on modern hardware
 - **[docs/MEMORY-MAP.md](docs/MEMORY-MAP.md)** - Where every byte lives
+- **[ROADMAP.md](ROADMAP.md)** - The improvement plan this codebase was taken through
+- **[SESSION.md](SESSION.md)** - What one Claude Fable 5 session found and fixed here (and what earlier models couldn't)
 
 ---
 
@@ -299,7 +301,7 @@ For context, this README file is about 9 kilobytes. The entire chess game would 
 |_________________________________|
 ```
 
-*983 bytes. Every one of them earned.*
+*961 bytes. Every one of them earned.*
 
 ---
 

@@ -2,7 +2,6 @@ name: Build and Test
 
 on:
   push:
-    branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
 
@@ -32,8 +31,17 @@ jobs:
     - name: Build
       run: make build
 
+    - name: Check generated artifacts are committed
+      run: git diff --exit-code chess.bin chess.p chess.sym hexdump.txt play/index.html
+
     - name: Run tests
       run: make test
+
+    - name: Install Playwright
+      run: npm install --no-save playwright && npx playwright install --with-deps chromium
+
+    - name: Browser smoke test
+      run: make browser-test
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4

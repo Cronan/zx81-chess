@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ZX81 1K Chess</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -232,6 +232,7 @@
         .reset-bar {
             display: flex;
             justify-content: center;
+            gap: 8px;
             margin-top: 8px;
         }
         .reset-btn {
@@ -247,6 +248,34 @@
             letter-spacing: 0.5px;
         }
         .reset-btn:hover { border-color: #555; color: #222; }
+        .kb-key:focus-visible, .square:focus-visible {
+            outline: 2px solid #4a90d9;
+            outline-offset: -2px;
+        }
+        .reset-btn:disabled, .modern-new-game:disabled {
+            opacity: 0.4;
+            cursor: default;
+        }
+
+        /* === Move history === */
+        .history-panel {
+            margin: 10px auto 0;
+            max-width: 320px;
+            max-height: 120px;
+            overflow-y: auto;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 11px;
+            color: #555;
+        }
+        .history-panel ol {
+            margin: 0;
+            padding: 0 0 0 28px;
+        }
+        .history-panel li {
+            padding: 1px 0;
+            font-variant-numeric: tabular-nums;
+        }
+        .history-panel .b-move { color: #999; }
 
         /* === Footer === */
         .footer {
@@ -382,6 +411,13 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
             font-weight: 600;
         }
+        /* Board flip: rotate the grid, counter-rotate the pieces.
+           data-sq stays truthful, so input logic never notices. */
+        .modern-view.flipped .modern-board { transform: rotate(180deg); }
+        .modern-view.flipped .modern-board .square svg { transform: rotate(180deg); }
+        .modern-view.flipped .modern-coords-left { flex-direction: column-reverse; }
+        .modern-view.flipped .modern-coords-bottom { flex-direction: row-reverse; }
+
         .modern-board {
             flex: 1;
             display: grid;
@@ -399,6 +435,18 @@
             position: relative;
             cursor: pointer;
             transition: background-color 0.3s ease;
+        }
+        /* Legal-destination hints (optional, off by default) */
+        .modern-board .square.hint::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            margin: auto;
+            width: 24%;
+            height: 24%;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.22);
+            pointer-events: none;
         }
         .modern-board .square.light { background: var(--sq-light); }
         .modern-board .square.dark { background: var(--sq-dark); }
@@ -565,7 +613,7 @@
             <span class="model">ZX81</span>
         </div>
         <div class="screen-bezel">
-            <canvas id="screen"></canvas>
+            <canvas id="screen" role="img" aria-label="ZX81 screen showing the chess board"></canvas>
         </div>
         <div class="move-bar" id="move-bar">
             <span class="move-slot active" id="s0">_</span>
@@ -634,7 +682,9 @@
                     <span class="sh">GRAPH</span>
                     <span class="fn-label">&nbsp;</span>
                 </div>
-                <div class="kb-key" data-key="0">
+                <!-- The 0 key is the ZX81's DELETE (shifted); 0 is never a
+                     chess coordinate, so the key acts directly as delete -->
+                <div class="kb-key" data-key="DEL">
                     <span class="kw">&nbsp;</span>
                     <span class="main">0</span>
                     <span class="sh">DELETE</span>
@@ -835,6 +885,8 @@
 
         <div class="reset-bar">
             <button class="reset-btn" id="btn-reset">NEW GAME</button>
+            <button class="reset-btn" id="btn-undo" disabled>UNDO</button>
+            <button class="reset-btn" id="btn-resume" hidden>RESUME</button>
         </div>
     </div>
     <!-- Modern view (hidden by default) -->
@@ -860,6 +912,10 @@
         <div class="modern-status" id="modern-status">Your move</div>
         <div class="modern-controls">
             <button class="modern-new-game" id="btn-modern-reset">New game</button>
+            <button class="modern-new-game" id="btn-modern-undo" disabled>Undo</button>
+            <button class="modern-new-game" id="btn-modern-flip" aria-pressed="false">Flip board</button>
+            <button class="modern-new-game" id="btn-modern-hints" aria-pressed="false">Hints</button>
+            <button class="modern-new-game" id="btn-modern-resume" hidden>Resume</button>
         </div>
         <div class="palette-row" id="palette-picker">
             <button class="palette-dot active" data-palette="classic" aria-label="Classic green board" tabindex="0">
@@ -889,14 +945,18 @@
         </div>
     </div>
 
+    <div class="history-panel" id="history-panel" hidden>
+        <ol id="history-list" aria-label="Move history"></ol>
+    </div>
+
     <div class="footer">
-        <a href="https://github.com/Cronan/zx81-chess">ZX81 1K Chess &middot; 672 bytes of Z80</a>
+        <a href="https://github.com/Cronan/zx81-chess">ZX81 1K Chess &middot; under 1K of Z80</a>
     </div>
 
     <script src="z80.js"></script>
     <script src="zx81.js"></script>
     <script>
-        const CHESS_P = 'AAAAbURuRIZEAACHRH1AAACIRIhEAF1AAAIAAP///zd9QAAAAAAAjQwAAP//AAC8IRhAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAdoD6gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADUzJzc2MAABAwMFCTL3+Pn/AQcICe/x9voGCg8RBAIDBQYDAgTNOUHNckGvMshAzehBzUhCzXJBzYFCIBY+CDLIQM2XQs1SQs1yQc2BQiAIw/VAIStBGAMhM0HNUkR2GP4+NDoAPC4z/y4APC4z/yGCQAZAr3cjEPwhgkAR50AGCBp3IxMQ+gYIPgF3IxD8IbJABgg+CXcjEPwR50AGCBr2CHcjExD4yc0qCioMQCM+ANfXBgg+JvXXPgDX8TwQ9z521w4I3SG6QD4cgdc+ANcGCN3l0RrF1c3QQdc+ANfRwRMQ8T52193l4RH4/xnl3eENINU+ANfXBgg+JvXXPgDX8TwQ98mnIAM+G8n15gdfFgAhyUAZftHLWsj2gMk+dtc+D9fNG0Iyw0BfFgAhgkAZfqco78tfIOs+FtfNG0IyxEBfFgAhgkAZfqfIy1/AGNPNOELWJuYH9cYm1804QtYd5gf1xh3X8QcHB9GCyXY6JUD+/yj49T7/MiVA8ck6w0BPOsRARxgIOsVATzrGQEdZFgAhgkAZfjYAWBYAIYJAGXfmB/4BwHj+ODAH/gjQPg13yT4Fd8khgkAGQA4AfuYH/gYgAQwjEPV5/gLJrzLHQD7/MsVAr/VfFgAhgkAZfqcoHctfKBnmB1fx9V96/gHK0UL+Aso/Q/4GymtDw5dD8Tz+QCDRyXvWCDj0T832Q6cgGz4BzSpEe+Y4/jAgD3vWEE/N9kOnIAU+Ac0qRHvWBzgGT80OQygAe9YJOARPzQ5DGLx75gdHeeYHkCgmMALtRP4CMB7N9kOnKBjLXyAUzfZD5gfV5V8WACHQQBl+4dHNKkTJId9ABgjF5X5Pe4H+QDAVT80DRP4DMA3N9kPLXyAGzRJEzSpE4cEjENzDykIh10AGCMXlfk97gf5AMBVPzQNE/gIwDc32Q8tfIAbNEkTNKkThwSMQ3MPKQnr+BT7/MAg+WstCKAI+pSHXQAYIV8Xl1XrmASg3fld7R4L+QDAuT/V45gdHeeYHkDAC7UT+AjAbzfZDpygNy18gEc0SRM0qRPEYCT4BzSpE8RjN8dHLOuHBIxC5w8pC5dVZFgAhgkAZftHhydV75gdXeeYHkjAC7UTRyc32Q6coD+YH5dVfFgAh0EAZftHhyT4BydVXeeYH1gP+AjABFDrHQLo4CCASOjRAHzAMejLHQHsyxUB5MsZA0cl+/v/I1yMY+HYAAg4A+dQdIiEdIH4AAABAgnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2gA==';
+        const CHESS_P = 'AAAAVkRXRG9EAABwRH1AAABxRHFEAF1AAAIAAP///zd9QAAAAAAAjQwAAP//AAC8IRhAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAcMD6gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/AAAAAAAAADUzJzc2MAADCAgMFDL3+Pn/AQcICe/x9voGCg8RBAIDBQYDAgTNOUHNdEGvMshAzdhBzS5CzXRBzZdCIBY+CDLIQM2tQs04Qs10Qc2XQiAIw/VAIStBGAMhM0HNO0R2GP4+NDoAPC4z/y4APC4z/yGCQAZAr3cjEPwhgkAR50AGCBp3IxMQ+gYIPgF3IxD8IbJABgg+CXcjEPwR50AGCBr2CHcjExD4Nv/JzSoKza5BPnbXDgjdIbpAPhyB1z4A1wYI3eXRGsXVzcBB1z4A19HBExDxPnbX3eXhEfj/GeXd4Q0g1T4A19cGCD4m9dc+ANfxPBD3yacgAz4byfXmB18WACHJQBl+0ctayPaAyT521z4P180BQjLDQM3aQ6co9MtfIPA+FtfNAUIyxEDN2kOnyMtfwBjdzR5C1ibmB/XGJtfNHkLWHeYH9cYd1/EHBwfRgsl2OiVA/v8o+PU+/zIlQPHJOsNATzrEQEcYCzrFQDzIPU86xkBHec3aQzYAWBYAIYJAGXfmB/4BKAY+/zLCQMk6wkC4IA955jhXeOYHsuXN2kM2AOE+/zLCQHmQMALtRP4QIAd5gB8ywkDJeP44MAP+CNA6yED2BXfJIYJABkAOAH7mB/4GIAEMIxD1ef4Cya8yx0A+/zLFQK/1zdpDpygdy18oGeYHV/H1X3r+AcriQv4CykdD/gbKTkPDe0PxPP5AINbJe9YIOPRPzeNDpyAjef4IPgEwAzrVQM0TRHvmOP4wIA971hBPzeNDpyAFPgHNE0R71gc4BE/NJUN71gk4BE/NJUMYts3sQz0gGzrCQLkgBTrRQBgNzeNDpygKy18gBs37Q80TRMkh30AWAxgFIddAFgIGCMXlfk97gf5AMBRPzexDujANzeNDy18gBs37Q80TROHBIxDdw9tCev4FPv8wCD5ay0IoAj6lIddABghXxeXVeuYBKDd+V3tHgv5AMC5P9XjmB0d55geQMALtRP4CMBvN40OnKA3LXyARzftDzRNE8RgJPgHNE0TxGM3x0cs64cEjELnD20JfFgAhgkAZfsnl1XnN2kPR4cnVe+YHV3nmB5IwAu1E0cnN40OnKA/mB+XVXxYAIdBAGX7R4ck+AcnVV3nmB9YD/gIwARQ6x0C6OAggEjo0QB8wDHoyx0B7MsVAeTLGQNHJfv7/yNcjGPh2AAIOAPnUHSIhHSB+AAAAQIJ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2doA=';
 
         let cpu, zx81, running = false, frameInterval = null;
         let moveChars = [];
@@ -977,6 +1037,186 @@
             updateKeyboard();
         }
 
+        // --- Move history and undo ---
+        // A snapshot of board + working variables ($4082-$40C8) is taken
+        // before each player move; undo restores it, rewinding a full
+        // turn (the player's move and the AI's reply).
+        let moveHistory = [];        // {side: 'W'|'B', text: 'E2-E4'}
+        let pendingPlayerMove = null;
+        let undoStack = [];
+
+        const ENTRY_POINT = 0x40EF;
+        const STATE_BASE = 0x4082, STATE_END = 0x40C9;
+
+        function sqName(idx) {
+            return FILES[idx & 7] + String((idx >> 3) + 1);
+        }
+
+        function makeSnapshot() {
+            return {
+                mem: Array.from(cpu.memory.slice(STATE_BASE, STATE_END)),
+                lastMoveFrom, lastMoveTo,
+                history: moveHistory.length,
+            };
+        }
+
+        // Borrow the idle CPU to run one engine routine to completion.
+        // Used to re-run cls_and_draw after undo rewrites the board:
+        // the ZX81 display file is drawn by the engine, not by JS.
+        function borrowCpu(addr) {
+            const savedPC = cpu.pc, savedSP = cpu.sp;
+            cpu.push(savedPC);
+            cpu.pc = addr;
+            for (let i = 0; i < 200000; i++) {
+                if (cpu.pc === savedPC && cpu.sp === savedSP) return;
+                cpu.step();
+            }
+        }
+
+        function clsAndDrawAddr() {
+            // Entry point is CALL init_board / CALL cls_and_draw / game_loop
+            return cpu.rw(ENTRY_POINT + 4);
+        }
+
+        // Restore a game state (shared by undo and resume). The engine
+        // must be idle at its input HALT - or stuck at game over, in
+        // which case printPrompt=false and the caller re-enters game_loop.
+        function applyGameState(mem, history, lmf, lmt, printPrompt) {
+            for (let i = 0; i < mem.length; i++) {
+                cpu.memory[STATE_BASE + i] = mem[i];
+            }
+            moveHistory = history;
+            lastMoveFrom = lmf;
+            lastMoveTo = lmt;
+            pendingPlayerMove = null;
+            moveChars = [];
+            zx81.keyBuffer = [];
+            clearModernSelection();
+
+            borrowCpu(clsAndDrawAddr());     // redraw the ZX81 screen
+            if (printPrompt) {
+                // The engine is waiting inside get_move; put its
+                // prompt back after the redraw wiped the line.
+                zx81.printChar(0x76);        // newline
+                zx81.printChar(0x0F);        // '?'
+            }
+            waitingForInput = true;
+            thinkingStartFrame = 0;
+            lastBoardState = null;           // force modern re-render
+
+            zx81.render();
+            if (modernMode) {
+                renderModernBoard();
+                highlightLastMove(lastMoveFrom, lastMoveTo);
+            }
+            renderHistory();
+            updateMoveDisplay();
+        }
+
+        function undoMove() {
+            if (undoStack.length === 0) return;
+            const wasGameOver = gameOver || !running;
+            if (!wasGameOver && !waitingForInput) return;  // AI mid-think
+
+            const snap = undoStack.pop();
+            applyGameState(snap.mem, moveHistory.slice(0, snap.history),
+                snap.lastMoveFrom, snap.lastMoveTo, !wasGameOver);
+            if (wasGameOver) {
+                // The engine is stuck in show_result's endless loop;
+                // re-enter the game loop, which prints its own prompt.
+                gameOver = false;
+                document.getElementById('game-over-overlay').classList.remove('visible');
+                cpu.halted = false;
+                cpu.pc = ENTRY_POINT + 6;    // game_loop
+                if (!running) {
+                    running = true;
+                    if (!frameInterval) frameInterval = setInterval(runFrame, 50);
+                }
+            }
+            persistGame();
+        }
+
+        // --- Save / resume (localStorage) ---
+        // The state of the game is persisted after every completed turn.
+        // A rebuilt binary invalidates old saves via the version key.
+        let pendingResume = null;
+
+        function saveVersion() {
+            return CHESS_P.length + ':' + CHESS_P.slice(0, 32);
+        }
+
+        function persistGame() {
+            try {
+                if (moveHistory.length === 0) {
+                    localStorage.removeItem('chess-save');
+                    return;
+                }
+                localStorage.setItem('chess-save', JSON.stringify({
+                    v: saveVersion(),
+                    mem: Array.from(cpu.memory.slice(STATE_BASE, STATE_END)),
+                    history: moveHistory,
+                    lastMoveFrom, lastMoveTo,
+                }));
+            } catch (e) {}
+        }
+
+        function loadSavedGame() {
+            try {
+                const raw = localStorage.getItem('chess-save');
+                if (!raw) return null;
+                const s = JSON.parse(raw);
+                if (s.v !== saveVersion()) return null;
+                if (!Array.isArray(s.mem) || s.mem.length !== STATE_END - STATE_BASE) return null;
+                if (!Array.isArray(s.history) || s.history.length === 0) return null;
+                return s;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function setResumeVisible(visible) {
+            document.getElementById('btn-resume').hidden = !visible;
+            document.getElementById('btn-modern-resume').hidden = !visible;
+        }
+
+        function resumeSavedGame() {
+            const saved = loadSavedGame();
+            setResumeVisible(false);
+            if (!saved) return;
+            // Applied from runFrame once the engine idles at its input
+            // HALT - applying mid-boot would be undone by init_board.
+            pendingResume = saved;
+        }
+
+        document.getElementById('btn-resume').onclick = resumeSavedGame;
+        document.getElementById('btn-modern-resume').onclick = resumeSavedGame;
+
+        function renderHistory() {
+            const panel = document.getElementById('history-panel');
+            const list = document.getElementById('history-list');
+            panel.hidden = moveHistory.length === 0;
+            list.innerHTML = '';
+            for (let i = 0; i < moveHistory.length; i += 2) {
+                const li = document.createElement('li');
+                li.textContent = moveHistory[i].text + ' ';
+                const black = moveHistory[i + 1];
+                if (black) {
+                    const span = document.createElement('span');
+                    span.className = 'b-move';
+                    span.textContent = black.text;
+                    li.appendChild(span);
+                }
+                list.appendChild(li);
+            }
+            list.scrollTop = list.scrollHeight;
+            const canUndo = undoStack.length > 0;
+            document.getElementById('btn-undo').disabled = !canUndo;
+            document.getElementById('btn-modern-undo').disabled = !canUndo;
+        }
+
+        document.getElementById('btn-undo').onclick = undoMove;
+        document.getElementById('btn-modern-undo').onclick = undoMove;
+
         // --- Flash + haptic feedback ---
         function flashKey(el) {
             el.classList.add('flash');
@@ -999,6 +1239,10 @@
                     sq.dataset.sq = idx;
                     sq.dataset.file = String.fromCharCode(65 + col);
                     sq.dataset.rank = rank + 1;
+                    sq.setAttribute('role', 'button');
+                    sq.tabIndex = 0;
+                    sq.setAttribute('aria-label',
+                        sq.dataset.file.toLowerCase() + sq.dataset.rank + ', empty');
                     board.appendChild(sq);
                     modernSquares[idx] = sq;
                 }
@@ -1024,11 +1268,16 @@
                 }
             }
 
+            const PIECE_WORDS = ['empty', 'pawn', 'knight', 'bishop', 'rook', 'queen', 'king'];
             for (let i = 0; i < 64; i++) {
                 const sq = modernSquares[i];
                 const piece = state[i];
                 const ptype = piece & 0x07;
                 const isBlack = (piece & 0x08) !== 0;
+
+                const coord = sq.dataset.file.toLowerCase() + sq.dataset.rank;
+                sq.setAttribute('aria-label', ptype === 0 ? coord + ', empty'
+                    : coord + ', ' + (isBlack ? 'black ' : 'white ') + PIECE_WORDS[ptype]);
 
                 // Clear previous piece
                 while (sq.firstChild) sq.removeChild(sq.firstChild);
@@ -1115,6 +1364,8 @@
         function handleGameOver(result) {
             running = false;
             gameOver = true;
+            try { localStorage.removeItem('chess-save'); } catch (e) {}
+            setResumeVisible(false);
             if (frameInterval) { clearInterval(frameInterval); frameInterval = null; }
             zx81.render();
             if (modernMode) {
@@ -1129,6 +1380,78 @@
                 modernSquares[selectedSquare].classList.remove('selected');
             }
             selectedSquare = null;
+            clearHints();
+        }
+
+        // --- Legal-destination hints (optional) ---
+        // The engine plays an honour system - it validates only that the
+        // source is White and the destination isn't. These hints are a
+        // JS-side overlay of the real chess moves; they never block input,
+        // so the authentic anything-goes behaviour stays the default.
+        let hintsOn = false;
+
+        function clearHints() {
+            for (const sq of modernSquares) sq.classList.remove('hint');
+        }
+
+        function legalDests(from) {
+            const board = (i) => cpu.memory[BOARD_BASE + i];
+            const piece = board(from), ptype = piece & 0x07;
+            if (ptype === 0 || (piece & 0x08)) return [];
+            const file = from & 7, rank = from >> 3;
+            const isWhiteAt = (i) => { const p = board(i); return p !== 0 && !(p & 0x08); };
+            const dests = [];
+
+            if (ptype === 1) {                       // pawn: north, captures NE/NW, ep
+                const fwd = from + 8;
+                if (fwd < 64 && board(fwd) === 0) {
+                    dests.push(fwd);
+                    if (rank === 1 && board(from + 16) === 0) dests.push(from + 16);
+                }
+                for (const d of [7, 9]) {
+                    const t = from + d;
+                    if (t < 64 && Math.abs((t & 7) - file) === 1 &&
+                        ((board(t) & 0x08) !== 0 || t === cpu.memory[0x40C2])) {
+                        dests.push(t);
+                    }
+                }
+            } else if (ptype === 2) {                // knight
+                for (const [dr, df] of [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]]) {
+                    const r = rank + dr, f = file + df;
+                    if (r >= 0 && r < 8 && f >= 0 && f < 8 && !isWhiteAt(r * 8 + f)) {
+                        dests.push(r * 8 + f);
+                    }
+                }
+            } else if (ptype === 6) {                // king
+                for (const dr of [-1, 0, 1]) for (const df of [-1, 0, 1]) {
+                    if (dr === 0 && df === 0) continue;
+                    const r = rank + dr, f = file + df;
+                    if (r >= 0 && r < 8 && f >= 0 && f < 8 && !isWhiteAt(r * 8 + f)) {
+                        dests.push(r * 8 + f);
+                    }
+                }
+            } else {                                 // sliders
+                const dirs = [];
+                if (ptype === 3 || ptype === 5) dirs.push([1,1],[1,-1],[-1,1],[-1,-1]);
+                if (ptype === 4 || ptype === 5) dirs.push([1,0],[-1,0],[0,1],[0,-1]);
+                for (const [dr, df] of dirs) {
+                    let r = rank + dr, f = file + df;
+                    while (r >= 0 && r < 8 && f >= 0 && f < 8) {
+                        const t = r * 8 + f;
+                        if (isWhiteAt(t)) break;
+                        dests.push(t);
+                        if (board(t) !== 0) break;   // capture ends the ray
+                        r += dr; f += df;
+                    }
+                }
+            }
+            return dests;
+        }
+
+        function showHints(from) {
+            if (!hintsOn) return;
+            clearHints();
+            for (const t of legalDests(from)) modernSquares[t].classList.add('hint');
         }
 
         // --- Input handling ---
@@ -1159,6 +1482,12 @@
 
         function sendMove() {
             if (moveChars.length !== 4) return;
+            // A move supersedes any offered resume
+            setResumeVisible(false);
+            // Snapshot for undo; confirmed (or rolled back) when the
+            // engine accepts or rejects the move
+            undoStack.push(makeSnapshot());
+            pendingPlayerMove = moveChars[0] + moveChars[1] + '-' + moveChars[2] + moveChars[3];
             // Track player's move for modern board highlighting
             const fromFile = FILES.indexOf(moveChars[0]);
             const fromRank = parseInt(moveChars[1]) - 1;
@@ -1178,6 +1507,11 @@
         // --- Emulator ---
         let frameCount = 0;
         let thinkingStartFrame = 0;
+        // Stall watchdog: this many consecutive full-budget frames with
+        // no HALT means the program is spinning (a bad build, not a long
+        // think - thinking takes a frame or two)
+        const STALL_FRAMES = 600;
+        let busyFrames = 0;
 
         function runFrame() {
             if (!running) return;
@@ -1188,7 +1522,13 @@
             zx81.tickFrames();
 
             let hitHalt = false;
-            for (let i = 0; i < 100000 && running; i++) {
+            // idleHalt: the engine HALTed and there was NO key to give
+            // it - it is truly waiting at wait_key. A HALT that consumed
+            // a key is still mid-input: the key is delivered but not yet
+            // processed, so the board can't be inspected reliably.
+            let idleHalt = false;
+            cpu.cycles = 0;   // per-frame instruction budget
+            while (cpu.cycles < cpu.maxCycles && running) {
                 if (cpu.pc === 0) { running = false; break; }
                 const result = cpu.step();
                 if (result === 'halt') {
@@ -1196,6 +1536,7 @@
                     cpu.ww(0x4025, key !== 0xFF ? key : 0xFFFF);
                     cpu.halted = false;
                     hitHalt = true;
+                    idleHalt = (key === 0xFF);
                     break;
                 }
                 if (result === 'error') {
@@ -1207,14 +1548,33 @@
 
             frameCount++;
 
+            // Runaway guard: stop a program that never comes back to
+            // HALT instead of burning the tab's CPU forever
+            busyFrames = hitHalt ? 0 : busyFrames + 1;
+            if (busyFrames > STALL_FRAMES && running) {
+                running = false;
+                if (frameInterval) { clearInterval(frameInterval); frameInterval = null; }
+                document.getElementById('status').textContent =
+                    'Engine stalled at $' + cpu.pc.toString(16);
+                return;
+            }
+
             if (!hitHalt && running) {
-                if (thinkingStartFrame === 0) {
+                // A frame with no HALT means the engine is busy. That is
+                // "thinking" only if we actually sent it a move - during
+                // boot the engine is busy drawing, and treating that as
+                // thinking used to invent a turn from stale state.
+                if (thinkingStartFrame === 0 && pendingPlayerMove) {
                     thinkingStartFrame = frameCount;
-                    // Player's move applied — check if black king captured
+                    // Player's move applied — record it in the history
+                    moveHistory.push({ side: 'W', text: pendingPlayerMove });
+                    pendingPlayerMove = null;
+                    renderHistory();
+                    // Check if black king captured
                     const result = checkGameOver();
                     if (result) { handleGameOver(result); return; }
+                    waitingForInput = false;
                 }
-                waitingForInput = false;
             } else if (hitHalt) {
                 if (thinkingStartFrame > 0) {
                     // Computer just finished thinking; read its move
@@ -1223,12 +1583,54 @@
                     thinkingStartFrame = 0;
                     waitingForInput = true;
                     moveChars = [];
+                    moveHistory.push({ side: 'B', text: sqName(lastMoveFrom) + '-' + sqName(lastMoveTo) });
+                    renderHistory();
+                    persistGame();
                     // AI's move applied — check if white king captured
                     const result = checkGameOver();
                     if (result) { handleGameOver(result); return; }
-                } else if (!waitingForInput && zx81.keyBuffer.length === 0) {
+                } else if (!waitingForInput && idleHalt) {
+                    // The engine is asking for input again without a
+                    // visible thinking pause. Either it rejected the
+                    // move, or it processed the whole turn inside one
+                    // frame - decide by comparing state to the snapshot
+                    // rather than trusting frame timing.
+                    if (pendingPlayerMove) {
+                        const snap = undoStack[undoStack.length - 1];
+                        const unchanged = snap.mem.every(
+                            (b, i) => cpu.memory[STATE_BASE + i] === b);
+                        if (unchanged) {
+                            // Rejected: the move never happened
+                            undoStack.pop();
+                            pendingPlayerMove = null;
+                            renderHistory();
+                        } else {
+                            moveHistory.push({ side: 'W', text: pendingPlayerMove });
+                            pendingPlayerMove = null;
+                            const result = checkGameOver();
+                            if (result) {
+                                renderHistory();
+                                handleGameOver(result);
+                                return;
+                            }
+                            // Game continues, so the AI replied too
+                            lastMoveFrom = cpu.memory[0x40C5];
+                            lastMoveTo = cpu.memory[0x40C6];
+                            moveHistory.push({ side: 'B', text: sqName(lastMoveFrom) + '-' + sqName(lastMoveTo) });
+                            renderHistory();
+                            persistGame();
+                        }
+                    }
                     waitingForInput = true;
                     moveChars = [];
+                }
+                // A resume is applied only here, when the engine has just
+                // HALTed with no keys - i.e. it is idle at wait_key
+                if (pendingResume && idleHalt && thinkingStartFrame === 0) {
+                    const s = pendingResume;
+                    pendingResume = null;
+                    applyGameState(s.mem, s.history, s.lastMoveFrom, s.lastMoveTo, true);
+                    return;
                 }
             }
 
@@ -1259,10 +1661,14 @@
             moveChars = [];
             frameCount = 0;
             thinkingStartFrame = 0;
-            waitingForInput = true;
+            // Not until the engine reaches its first input HALT - typing
+            // during boot must not be possible
+            waitingForInput = false;
 
             cpu.sp = 0x7FFF;
             cpu.pc = 0x40EF;
+            cpu.maxCycles = 100000;  // per-frame instruction budget
+            busyFrames = 0;
             cpu.ww(0x4025, 0xFFFF);
 
             updateMoveDisplay();
@@ -1301,6 +1707,13 @@
             lastMoveFrom = null;
             lastMoveTo = null;
             selectedSquare = null;
+            moveHistory = [];
+            undoStack = [];
+            pendingPlayerMove = null;
+            pendingResume = null;
+            renderHistory();
+            // A saved game (from before the reset) can still be resumed
+            setResumeVisible(!!loadSavedGame());
             document.getElementById('game-over-overlay').classList.remove('visible');
             init();
             start();
@@ -1361,7 +1774,7 @@
         }
 
         // --- Modern board click input ---
-        document.getElementById('modern-board').addEventListener('pointerdown', (e) => {
+        function activateSquare(e) {
             if (!modernMode || !running || !waitingForInput) return;
             const sq = e.target.closest('.square');
             if (!sq) return;
@@ -1382,6 +1795,7 @@
                 clearModernSelection();
                 selectedSquare = sqIdx;
                 modernSquares[sqIdx].classList.add('selected');
+                showHints(sqIdx);
                 handleKey(file);
                 handleKey(rank);
             } else if (moveChars.length === 2) {
@@ -1396,6 +1810,7 @@
                     clearModernSelection();
                     selectedSquare = sqIdx;
                     modernSquares[sqIdx].classList.add('selected');
+                    showHints(sqIdx);
                     handleKey(file);
                     handleKey(rank);
                     updateMoveDisplay();
@@ -1406,14 +1821,60 @@
                 handleKey(file);
                 handleKey(rank);
             }
+        }
+
+        document.getElementById('modern-board').addEventListener('pointerdown', activateSquare);
+        // Keyboard operability: squares are focusable role=button
+        document.getElementById('modern-board').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') activateSquare(e);
         });
+
+        // The membrane keys are focusable buttons too
+        document.querySelectorAll('.kb-key').forEach((el) => {
+            el.setAttribute('role', 'button');
+            el.tabIndex = 0;
+            const k = el.dataset.key;
+            el.setAttribute('aria-label', k === 'DEL' ? 'Delete' : k);
+        });
+        document.getElementById('keyboard').addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            const el = e.target.closest('.kb-key');
+            if (!el || !el.classList.contains('valid')) return;
+            e.preventDefault();
+            flashKey(el);
+            handleKey(el.dataset.key);
+        });
+
+        // --- Board flip (modern skin) ---
+        const flipBtn = document.getElementById('btn-modern-flip');
+        function setFlipped(flipped) {
+            document.getElementById('modern-view').classList.toggle('flipped', flipped);
+            flipBtn.setAttribute('aria-pressed', String(flipped));
+            try { localStorage.setItem('chess-flipped', flipped ? '1' : ''); } catch (e) {}
+        }
+        flipBtn.addEventListener('click', () =>
+            setFlipped(!document.getElementById('modern-view').classList.contains('flipped')));
+        try { if (localStorage.getItem('chess-flipped')) setFlipped(true); } catch (e) {}
+
+        // --- Hints toggle ---
+        const hintsBtn = document.getElementById('btn-modern-hints');
+        function setHints(on) {
+            hintsOn = on;
+            hintsBtn.setAttribute('aria-pressed', String(on));
+            if (!on) clearHints();
+            else if (selectedSquare !== null) showHints(selectedSquare);
+            try { localStorage.setItem('chess-hints', on ? '1' : ''); } catch (e) {}
+        }
+        hintsBtn.addEventListener('click', () => setHints(!hintsOn));
+        try { if (localStorage.getItem('chess-hints')) setHints(true); } catch (e) {}
 
         // --- Modern new game ---
         document.getElementById('btn-modern-reset').onclick = resetGame;
 
-        // Auto-start on load
+        // Auto-start on load; offer to resume a saved game
         init();
         start();
+        setResumeVisible(!!loadSavedGame());
     </script>
 </body>
 </html>

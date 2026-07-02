@@ -10,7 +10,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from test_harness import Z80, setup_zx81_memory, print_board_from_memory
+from test_harness import Z80, setup_zx81_memory, print_board_from_memory, load_symbols
 
 # Memory addresses (must match chess.asm)
 BOARD = 0x4082
@@ -52,8 +52,10 @@ class ChessTest:
         with open('chess.bin', 'rb') as f:
             self.code = f.read()
 
-        # Find routine addresses
-        self.start_addr = 0x4082 + 109  # After data tables
+        # Routine addresses come from the pasmo symbol table (make build),
+        # so reordering chess.asm can't silently break the locators
+        self.sym = load_symbols()
+        self.start_addr = self.sym['start']
 
     def setup_cpu(self):
         """Create fresh CPU state with code loaded."""
@@ -63,11 +65,6 @@ class ChessTest:
         cpu.sp = 0x7FFF
         cpu.max_cycles = 500_000  # Default limit to prevent hangs
         return cpu
-
-    def find_routine(self, cpu, offset_from_start):
-        """Get routine address from CALL instruction."""
-        addr = self.start_addr + offset_from_start
-        return cpu.rb(addr + 1) | (cpu.rb(addr + 2) << 8)
 
     def call_routine(self, cpu, addr):
         """Call a routine and wait for return."""
@@ -93,42 +90,24 @@ class ChessTest:
         r = rank - 1
         return r * 8 + f
 
-    def find_think(self, cpu):
-        """Find think routine address."""
-        for addr in range(self.start_addr, self.start_addr + 200):
-            if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-                cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-                return cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-        raise RuntimeError("Could not find think routine")
+    # Routine lookups (the cpu argument is kept for call-site compatibility)
+    def find_think(self, cpu=None):
+        return self.sym['think']
 
-    def find_get_move(self, cpu):
-        """Find get_move routine address (3rd CALL from start, offset 10)."""
-        return self.find_routine(cpu, 10)
+    def find_ai_make_move(self, cpu=None):
+        return self.sym['ai_make_move']
 
-    def find_get_square(self, cpu):
-        """Find get_square routine address (called from get_move)."""
-        get_move = self.find_get_move(cpu)
-        # get_move starts: LD A,$76 / RST $10 / LD A,$0F / RST $10 / CALL get_square
-        # = 3E 76 D7 3E 0F D7 CD xx xx
-        call_addr = get_move + 6
-        assert cpu.rb(call_addr) == 0xCD, f"Expected CALL at get_move+6, got 0x{cpu.rb(call_addr):02x}"
-        return cpu.rb(call_addr + 1) | (cpu.rb(call_addr + 2) << 8)
+    def find_get_move(self, cpu=None):
+        return self.sym['get_move']
 
-    def find_cls_and_draw(self, cpu):
-        """Find cls_and_draw routine (2nd CALL from start, offset 3)."""
-        return self.find_routine(cpu, 3)
+    def find_get_square(self, cpu=None):
+        return self.sym['get_square']
 
-    def find_get_piece_char(self, cpu):
-        """Find get_piece_char by scanning cls_and_draw for CALL in col_loop."""
-        draw_addr = self.find_cls_and_draw(cpu)
-        # Scan forward for the CALL inside the column loop
-        for addr in range(draw_addr + 30, draw_addr + 120):
-            if cpu.rb(addr) == 0xCD:
-                target = cpu.rb(addr + 1) | (cpu.rb(addr + 2) << 8)
-                # get_piece_char starts with AND A (0xA7)
-                if cpu.rb(target) == 0xA7:
-                    return target
-        raise RuntimeError("Could not find get_piece_char routine")
+    def find_cls_and_draw(self, cpu=None):
+        return self.sym['cls_and_draw']
+
+    def find_get_piece_char(self, cpu=None):
+        return self.sym['get_piece_char']
 
     def setup_cpu_with_keys(self, keys):
         """Create CPU with keyboard input queue."""
@@ -140,8 +119,12 @@ class ChessTest:
 
     def init_board(self, cpu):
         """Initialize the chess board."""
-        init_addr = self.find_routine(cpu, 0)
+        init_addr = self.sym['init_board']
         self.call_routine(cpu, init_addr)
+
+    def piece_value(self, cpu, piece):
+        """Read a piece's capture value from the binary's own table."""
+        return cpu.rb(self.sym['piece_vals'] + (piece & 0x07))
 
 
 def test_board_init():
@@ -149,7 +132,7 @@ def test_board_init():
     t = ChessTest()
     cpu = t.setup_cpu()
 
-    init_addr = t.find_routine(cpu, 0)
+    init_addr = t.sym['init_board']
     t.call_routine(cpu, init_addr)
 
     # Check white pieces (rank 1)
@@ -195,15 +178,7 @@ def test_knight_moves():
     # Run AI to generate moves
     cpu.wb(SIDE, 8)  # Black's turn
 
-    # Find think routine
-    think_addr = None
-    for addr in range(t.start_addr, t.start_addr + 200):
-        if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-            cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-            think_addr = cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-            break
-
-    assert think_addr, "Could not find think routine"
+    think_addr = t.find_think(cpu)
 
     t.call_routine(cpu, think_addr)
 
@@ -234,12 +209,7 @@ def test_knight_edge():
 
     cpu.wb(SIDE, 8)
 
-    think_addr = None
-    for addr in range(t.start_addr, t.start_addr + 200):
-        if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-            cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-            think_addr = cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-            break
+    think_addr = t.find_think(cpu)
 
     t.call_routine(cpu, think_addr)
 
@@ -268,12 +238,7 @@ def test_bishop_diagonal():
     cpu.wb(SIDE, 8)
     cpu.max_cycles = 100_000  # Limit to prevent hangs
 
-    think_addr = None
-    for addr in range(t.start_addr, t.start_addr + 200):
-        if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-            cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-            think_addr = cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-            break
+    think_addr = t.find_think(cpu)
 
     t.call_routine(cpu, think_addr)
 
@@ -302,12 +267,7 @@ def test_rook_orthogonal():
 
     cpu.wb(SIDE, 8)
 
-    think_addr = None
-    for addr in range(t.start_addr, t.start_addr + 200):
-        if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-            cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-            think_addr = cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-            break
+    think_addr = t.find_think(cpu)
 
     cpu.cycles = 0
     t.call_routine(cpu, think_addr)
@@ -317,7 +277,9 @@ def test_rook_orthogonal():
 
     # Rook should capture queen on d1 (same file, highest value)
     assert best_to == d1, f"Rook should capture queen on d1 ({d1}), went to {best_to}"
-    assert best_score == 10, f"Score should be 10 (queen=9 + centre bonus=1), got {best_score}"
+    expected = t.piece_value(cpu, W_QUEEN) + 1  # + centre bonus (d file)
+    assert best_score == expected, \
+        f"Score should be {expected} (queen + centre bonus), got {best_score}"
 
     print("  PASS: rook orthogonal movement")
 
@@ -337,12 +299,7 @@ def test_queen_all_directions():
 
     cpu.wb(SIDE, 8)
 
-    think_addr = None
-    for addr in range(t.start_addr, t.start_addr + 200):
-        if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-            cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-            think_addr = cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-            break
+    think_addr = t.find_think(cpu)
 
     cpu.cycles = 0
     t.call_routine(cpu, think_addr)
@@ -352,7 +309,8 @@ def test_queen_all_directions():
 
     # Queen should capture king on h8 (diagonal, highest value)
     assert best_to == h8, f"Queen should capture king on h8 ({h8}), went to {best_to}"
-    assert best_score == 50, f"Score should be 50 (king), got {best_score}"
+    expected = t.piece_value(cpu, W_KING)
+    assert best_score == expected, f"Score should be {expected} (king), got {best_score}"
 
     print("  PASS: queen all-direction movement")
 
@@ -369,12 +327,7 @@ def test_pawn_forward():
 
     cpu.wb(SIDE, 8)
 
-    think_addr = None
-    for addr in range(t.start_addr, t.start_addr + 200):
-        if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-            cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-            think_addr = cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-            break
+    think_addr = t.find_think(cpu)
 
     t.call_routine(cpu, think_addr)
 
@@ -405,12 +358,7 @@ def test_pawn_double_move():
 
     cpu.wb(SIDE, 8)
 
-    think_addr = None
-    for addr in range(t.start_addr, t.start_addr + 200):
-        if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-            cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-            think_addr = cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-            break
+    think_addr = t.find_think(cpu)
 
     t.call_routine(cpu, think_addr)
 
@@ -442,12 +390,7 @@ def test_pawn_capture():
 
     cpu.wb(SIDE, 8)
 
-    think_addr = None
-    for addr in range(t.start_addr, t.start_addr + 200):
-        if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-            cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-            think_addr = cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-            break
+    think_addr = t.find_think(cpu)
 
     t.call_routine(cpu, think_addr)
 
@@ -474,12 +417,7 @@ def test_king_single_step():
 
     cpu.wb(SIDE, 8)
 
-    think_addr = None
-    for addr in range(t.start_addr, t.start_addr + 200):
-        if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-            cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-            think_addr = cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-            break
+    think_addr = t.find_think(cpu)
 
     t.call_routine(cpu, think_addr)
 
@@ -511,12 +449,7 @@ def test_capture_priority():
 
     cpu.wb(SIDE, 8)
 
-    think_addr = None
-    for addr in range(t.start_addr, t.start_addr + 200):
-        if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-            cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-            think_addr = cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-            break
+    think_addr = t.find_think(cpu)
 
     t.call_routine(cpu, think_addr)
 
@@ -524,8 +457,10 @@ def test_capture_priority():
     best_score = cpu.rb(BEST_SCORE)
 
     # Should capture rook (higher value)
-    assert best_to == e5, f"Should capture rook on e5 (value 5), captured square {best_to}"
-    assert best_score == 6, f"Score should be 6 (rook=5 + centre bonus=1), got {best_score}"
+    assert best_to == e5, f"Should capture rook on e5, captured square {best_to}"
+    expected = t.piece_value(cpu, W_ROOK) + 1  # + centre bonus (e file)
+    assert best_score == expected, \
+        f"Score should be {expected} (rook + centre bonus), got {best_score}"
 
     print("  PASS: capture priority (prefers high value)")
 
@@ -551,12 +486,7 @@ def test_no_self_capture():
 
     cpu.wb(SIDE, 8)
 
-    think_addr = None
-    for addr in range(t.start_addr, t.start_addr + 200):
-        if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-            cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-            think_addr = cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-            break
+    think_addr = t.find_think(cpu)
 
     t.call_routine(cpu, think_addr)
 
@@ -590,7 +520,7 @@ def test_check_kings():
         return
 
     # Test with both kings present
-    init_addr = t.find_routine(cpu, 0)
+    init_addr = t.sym['init_board']
     t.call_routine(cpu, init_addr)
 
     cpu.sp = 0x7FFF
@@ -623,7 +553,7 @@ def test_move_execution():
     cpu = t.setup_cpu()
 
     # Initialize board
-    init_addr = t.find_routine(cpu, 0)
+    init_addr = t.sym['init_board']
     t.call_routine(cpu, init_addr)
 
     # Set up a move: e2 to e4
@@ -738,12 +668,7 @@ def test_slider_blocked():
 
     cpu.wb(SIDE, 8)
 
-    think_addr = None
-    for addr in range(t.start_addr, t.start_addr + 200):
-        if (cpu.rb(addr) == 0x3E and cpu.rb(addr+1) == 0x08 and
-            cpu.rb(addr+2) == 0x32 and cpu.rb(addr+5) == 0xCD):
-            think_addr = cpu.rb(addr+6) | (cpu.rb(addr+7) << 8)
-            break
+    think_addr = t.find_think(cpu)
 
     t.call_routine(cpu, think_addr)
 
@@ -1385,6 +1310,10 @@ def test_en_passant_ai_capture():
     assert cpu.rb(BEST_FROM) == a4 and cpu.rb(BEST_TO) == b3, \
         (f"AI should choose a4xb3 ep ({a4}->{b3}), "
          f"got {cpu.rb(BEST_FROM)}->{cpu.rb(BEST_TO)}")
+    # ep is a real pawn capture and must be priced as one (b file: no bonus)
+    expected = t.piece_value(cpu, W_PAWN)
+    assert cpu.rb(BEST_SCORE) == expected, \
+        f"ep capture should score {expected} (pawn value), got {cpu.rb(BEST_SCORE)}"
 
     # Execute it (same do_move path ai_make_move uses)
     cpu.wb(SIDE, 8)
@@ -1444,7 +1373,7 @@ def test_en_passant_state():
     t = ChessTest()
     cpu = t.setup_cpu()
     make_move = _find_make_move(t, cpu)
-    init_board = t.find_routine(cpu, 0)  # 1st CALL from entry
+    init_board = t.sym['init_board']
     cpu.sp = 0x7FFF
 
     # Fresh binary image has no ep right
@@ -1470,6 +1399,110 @@ def test_en_passant_state():
     assert cpu.rb(EP_SQUARE) == 0xFF, "non-pawn move must clear ep square"
 
     print("  PASS: en passant state transitions")
+
+
+def test_capture_beats_centre_quiet():
+    """A free pawn must outbid a quiet centre move.
+
+    With the classic 1/3/3/5/9 values, a quiet move to the d/e files
+    scored 2 (1 + centre bonus) while capturing a pawn scored 1, so
+    the AI declined free material. The scaled value table makes the
+    smallest capture (pawn, 3) beat the biggest quiet score (2).
+    """
+    t = ChessTest()
+    cpu = t.setup_cpu()
+    t.clear_board(cpu)
+
+    b5, a4 = t.sq('b', 5), t.sq('a', 4)
+    t.set_piece(cpu, b5, B_PAWN)            # can capture a4 (no centre bonus)
+    t.set_piece(cpu, a4, W_PAWN)
+    t.set_piece(cpu, t.sq('e', 7), B_PAWN)  # has the quiet centre move e7-e6
+    t.set_piece(cpu, t.sq('a', 8), B_KING)
+    t.set_piece(cpu, t.sq('h', 1), W_KING)
+    cpu.wb(EP_SQUARE, 0xFF)
+    cpu.wb(SIDE, 8)
+
+    t.call_routine(cpu, t.find_think(cpu))
+
+    best_from, best_to = cpu.rb(BEST_FROM), cpu.rb(BEST_TO)
+    assert (best_from, best_to) == (b5, a4), \
+        (f"AI should take the free pawn b5xa4 ({b5}->{a4}), "
+         f"got {best_from}->{best_to}")
+
+    print("  PASS: capture outbids quiet centre move")
+
+
+def test_promotion_push_outbids_capture():
+    """The AI values a promoting push as a queen, not as a quiet move.
+
+    gen_pawn used to score every forward push 1, so the AI would take
+    any pawn rather than queen. The push to the last rank now scores
+    the queen's own table value.
+    """
+    t = ChessTest()
+    cpu = t.setup_cpu()
+    t.clear_board(cpu)
+
+    e2, e1 = t.sq('e', 2), t.sq('e', 1)
+    t.set_piece(cpu, e2, B_PAWN)            # one push from promotion
+    t.set_piece(cpu, t.sq('b', 5), B_PAWN)  # has a pawn capture available
+    t.set_piece(cpu, t.sq('a', 4), W_PAWN)
+    t.set_piece(cpu, t.sq('a', 8), B_KING)
+    t.set_piece(cpu, t.sq('h', 8), W_KING)
+    cpu.wb(EP_SQUARE, 0xFF)
+    cpu.wb(SIDE, 8)
+
+    t.call_routine(cpu, t.find_think(cpu))
+
+    best_from, best_to = cpu.rb(BEST_FROM), cpu.rb(BEST_TO)
+    assert (best_from, best_to) == (e2, e1), \
+        f"AI should promote e2-e1 ({e2}->{e1}), got {best_from}->{best_to}"
+    expected = t.piece_value(cpu, W_QUEEN) + 1  # + centre bonus (e file)
+    assert cpu.rb(BEST_SCORE) == expected, \
+        f"promoting push should score {expected}, got {cpu.rb(BEST_SCORE)}"
+
+    print("  PASS: promotion push outbids a pawn capture")
+
+
+def test_ai_no_move_passes():
+    """AI with zero pseudo-legal moves must not corrupt memory.
+
+    think leaves best_from = $FF when Black has no move at all;
+    ai_make_move used to load it unchecked, index board + $FF and
+    stomp the code region at $4181. It must leave memory untouched.
+    """
+    t = ChessTest()
+    cpu = t.setup_cpu()
+    t.clear_board(cpu)
+
+    # Boxed-in Black king: rank-1 black pawns have no push or capture
+    # squares (all off-board), a2/b2 pawns are blocked by own pieces,
+    # and every king neighbour is a Black piece.
+    cpu.wb(EP_SQUARE, 0xFF)
+    t.set_piece(cpu, t.sq('a', 1), B_KING)
+    t.set_piece(cpu, t.sq('b', 1), B_PAWN)
+    t.set_piece(cpu, t.sq('a', 2), B_PAWN)
+    t.set_piece(cpu, t.sq('b', 2), B_PAWN)
+    t.set_piece(cpu, t.sq('h', 8), W_KING)
+    cpu.wb(SIDE, 8)
+
+    think_addr = t.find_think(cpu)
+    ai_make_move = t.find_ai_make_move(cpu)
+
+    t.call_routine(cpu, think_addr)
+    assert cpu.rb(BEST_FROM) == 0xFF, \
+        f"think should find no move, best_from = {cpu.rb(BEST_FROM)}"
+
+    board_before = [t.get_piece(cpu, i) for i in range(64)]
+    code_byte = cpu.rb(BOARD + 0xFF)  # $4181, inside the machine code
+    t.call_routine(cpu, ai_make_move)
+
+    assert cpu.rb(BOARD + 0xFF) == code_byte, \
+        "ai_make_move wrote through board + $FF into the code region"
+    board_after = [t.get_piece(cpu, i) for i in range(64)]
+    assert board_after == board_before, "AI with no move must leave the board unchanged"
+
+    print("  PASS: AI passes cleanly when it has no move")
 
 
 def run_all_tests():
@@ -1519,6 +1552,9 @@ def run_all_tests():
         ("En Passant (AI capture)", test_en_passant_ai_capture),
         ("En Passant (expires)", test_en_passant_expires),
         ("En Passant (state transitions)", test_en_passant_state),
+        ("Capture Beats Centre Quiet", test_capture_beats_centre_quiet),
+        ("Promotion Push Outbids Capture", test_promotion_push_outbids_capture),
+        ("AI No Move (memory safety)", test_ai_no_move_passes),
     ]
 
     passed = 0

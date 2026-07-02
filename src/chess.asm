@@ -149,13 +149,17 @@ piece_chars:
 ; King value is high to make the computer always take the king
 ; (we don't have room for proper checkmate detection!)
 
+; Values are scaled so the SMALLEST capture (pawn, 3) beats the
+; biggest non-capture score (quiet move 1 + centre bonus 1 = 2).
+; With the classic 1/3/3/5/9 scale, a quiet centre move outbid
+; winning a free pawn and the AI declined material.
 piece_vals:
             DEFB    0           ; 0 = empty  (0 points)
-            DEFB    1           ; 1 = Pawn   (1 point)
-            DEFB    3           ; 2 = Knight (3 points)
-            DEFB    3           ; 3 = Bishop (3 points)
-            DEFB    5           ; 4 = Rook   (5 points)
-            DEFB    9           ; 5 = Queen  (9 points)
+            DEFB    3           ; 1 = Pawn
+            DEFB    8           ; 2 = Knight
+            DEFB    8           ; 3 = Bishop
+            DEFB    12          ; 4 = Rook
+            DEFB    20          ; 5 = Queen
             DEFB    50          ; 6 = King   (50 = game over!)
 
 ; Direction offsets for move generation
@@ -558,6 +562,9 @@ make_move:
 
 ai_make_move:
             ld      a, (best_from)
+            inc     a               ; $FF = think found no move at all
+            ret     z               ; skip the turn rather than play square $FF
+            dec     a
             ld      c, a
             ld      a, (best_to)
             ld      b, a
@@ -673,10 +680,11 @@ ck_next:    inc     hl
 ;   3. Score each move:
 ;      - Capture of enemy piece = piece value (1-50)
 ;      - Non-capture move = 1 point (just to have something)
-;      - Moving to a square attacked by enemy pawn = -2 penalty
+;      - Moving to a centre file (d or e) = +1 bonus
 ;   4. Keep track of the best-scoring move
-;   5. If tied, keep the first one found (slight preference for
-;      queenside pieces, which is a known weakness!)
+;   5. If tied, flip a coin (bit 0 of the FRAMES counter), so the
+;      choice varies from game to game instead of favouring the
+;      queenside
 ;
 ; Move generation uses direction tables. Each piece type has
 ; its movement pattern defined by direction offsets.
@@ -742,7 +750,8 @@ think_next:
 ; Capture: -7 (forward-left), -9 (forward-right)
 ; Double:  -16 (from rank 7 = starting position, indices 48-55)
 ;
-; Note: no en passant! That would eat about 40 bytes we don't have.
+; En passant rides along for free: check_pawn_cap treats a capture
+; onto the live ep square as valid, and do_move removes the pawn.
 
 gen_pawn:
             ; E = current square
@@ -755,9 +764,17 @@ gen_pawn:
             and     a               ; Empty?
             jr      nz, gp_cap      ; No - can't move forward
 
-            ; Empty - this is a valid non-capture move
-            ld      a, 1            ; Score = 1 (meh, it's a move)
-            call    try_move        ; Record if best so far
+            ; Empty - this is a valid non-capture move. A push to the
+            ; last rank becomes a queen, so score it as winning one;
+            ; before this the AI saw promotion as just another move.
+            ; (A capture-promotion still scores only the captured
+            ; piece - rarer, and the capture usually wins anyway.)
+            ld      a, c            ; Target square
+            cp      8               ; Below rank 2 = Black promotes
+            ld      a, 1            ; Quiet score (LD keeps the flags)
+            jr      nc, gp_score
+            ld      a, (piece_vals + 5) ; Promotion = a queen's worth
+gp_score:   call    try_move        ; Record if best so far
 
             ; Can we move two squares? (from starting rank 6 = indices 48-55)
             ld      a, e            ; Source square
@@ -782,7 +799,6 @@ gp_cap:
             ld      c, a
             ; Check column didn't wrap (file changed by exactly 1)
             call    check_pawn_cap
-            jr      z, gp_cap2      ; Not a valid capture
 
 gp_cap2:
             ld      a, e
@@ -803,33 +819,46 @@ check_pawn_cap:
             jr      nz, cpc_bad     ; 0 = not diagonal, >=2 = wrapped
 
             ; Capturing onto the en passant square is valid even though
-            ; the square is empty (score_move scores an empty square as
-            ; 1, which is exactly a pawn's value).
+            ; the square is empty. It captures a real pawn, so it is
+            ; priced explicitly as one (score_move would see an empty
+            ; square and return the quiet-move score).
             ld      a, (ep_square)
             cp      c
-            jr      z, cpc_take
+            jr      nz, cpc_notep
+            ld      a, (piece_vals + 1)  ; The captured pawn's value
+            jr      cpc_try
 
-            ; Otherwise the target must hold a White piece to capture
+cpc_notep:  ; Otherwise the target must hold a White piece to capture
             call    get_board_sq    ; A = piece at target C
             and     a
             jr      z, cpc_bad      ; Empty - pawns can't "move" diagonally
             bit     3, a            ; Is it Black?
             jr      nz, cpc_bad     ; Own piece - can't capture
 
-            ; Valid capture! score_move looks up the captured piece's
-            ; value (or 1 for the en passant pawn).
-cpc_take:   call    score_move
-            call    try_move
+            ; Valid capture! score_move looks up the captured piece's value
+            call    score_move
+cpc_try:    call    try_move
 cpc_bad:    ret
 
-; --- Knight move generation ---
-; Knights have 8 possible L-shaped moves.
-; They can jump over pieces (the only piece that can!)
+; --- Knight and King move generation ---
+; Both are single-step generators over an 8-entry direction table;
+; the only differences are the table and the column-delta limit
+; (knight files change by up to 2, king by 1). One shared body,
+; parameterised on HL (table) and D (delta limit). D is free here:
+; the piece type it held is not needed once we've dispatched, and
+; every helper below preserves it.
 
 gen_knight:
             ld      hl, knight_dirs
+            ld      d, 3            ; Column delta must be < 3
+            jr      gen_step
+gen_king:
+            ld      hl, king_dirs
+            ld      d, 2            ; Column delta must be < 2
+
+gen_step:
             ld      b, 8            ; 8 possible moves
-gn_loop:    push    bc
+gst_loop:   push    bc
             push    hl
 
             ld      a, (hl)         ; Get direction offset
@@ -840,62 +869,27 @@ gn_loop:    push    bc
             add     a, c            ; Add offset (may wrap/overflow)
             ; Check bounds: 0 <= result <= 63
             cp      64
-            jr      nc, gn_skip     ; Off the board (unsigned compare)
+            jr      nc, gst_skip    ; Off the board (unsigned compare)
 
-            ; Check column didn't wrap too far
-            ; For knights, column can change by 1 or 2
+            ; Check column didn't wrap around the board edge
             ld      c, a            ; C = target square
             call    check_col_delta
-            cp      3               ; Delta must be 0, 1, or 2
-            jr      nc, gn_skip     ; Column wrapped!
+            cp      d               ; Against this piece's limit
+            jr      nc, gst_skip    ; Column wrapped!
 
             ; Check target square
             call    get_board_sq    ; A = piece at target
             bit     3, a            ; Own (Black) piece?
-            jr      nz, gn_skip     ; Can't capture own piece
+            jr      nz, gst_skip    ; Can't capture own piece
 
             ; Score the move
             call    score_move      ; A = score for this move
             call    try_move        ; Record if best
 
-gn_skip:    pop     hl
+gst_skip:   pop     hl
             pop     bc
             inc     hl              ; Next direction
-            djnz    gn_loop
-            jp      think_next
-
-; --- King move generation ---
-; Same as Queen but limited to 1 step in each direction.
-
-gen_king:
-            ld      hl, king_dirs
-            ld      b, 8            ; 8 directions
-gk_loop:    push    bc
-            push    hl
-
-            ld      a, (hl)         ; Direction offset
-            ld      c, a
-            ld      a, e            ; Current square
-            add     a, c
-            cp      64
-            jr      nc, gk_skip     ; Off board
-
-            ld      c, a
-            call    check_col_delta
-            cp      2               ; King moves max 1 column
-            jr      nc, gk_skip
-
-            call    get_board_sq
-            bit     3, a
-            jr      nz, gk_skip     ; Own piece
-
-            call    score_move
-            call    try_move
-
-gk_skip:    pop     hl
-            pop     bc
-            inc     hl
-            djnz    gk_loop
+            djnz    gst_loop
             jp      think_next
 
 ; --- Sliding piece move generation (Bishop, Rook, Queen) ---

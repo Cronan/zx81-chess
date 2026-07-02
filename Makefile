@@ -16,19 +16,28 @@ PYTHON = python3
 SRC = src/chess.asm
 BIN = chess.bin
 PFILE = chess.p
+SYM = chess.sym
 
 # Hard ceiling for the assembled binary. The game must never grow
 # past this; free bytes elsewhere before adding anything new.
 MAXSIZE ?= 984
 
-.PHONY: all build test diff-test clean
+.PHONY: all build test diff-test browser-test clean
 
 all: build test
 
-build: $(PFILE) hexdump.txt
+build: $(PFILE) $(SYM) hexdump.txt embed
 
-$(BIN): $(SRC)
-	$(ASM) --bin $(SRC) $(BIN)
+# The browser page embeds chess.p as base64 - regenerated, never hand-edited
+.PHONY: embed
+embed: $(PFILE) tools/update_embedded_p.py
+	$(PYTHON) tools/update_embedded_p.py
+
+# chess.sym is the pasmo symbol table - the tests resolve routine
+# addresses from it instead of hard-coding offsets. Grouped target
+# (&:) because one pasmo run produces both files.
+$(BIN) $(SYM) &: $(SRC)
+	$(ASM) --bin $(SRC) $(BIN) $(SYM)
 	@actual=$$(wc -c < $(BIN)); \
 	echo "Assembled: $$actual bytes (limit $(MAXSIZE))"; \
 	if [ $$actual -gt $(MAXSIZE) ]; then \
@@ -45,6 +54,12 @@ hexdump.txt: $(BIN) tools/make_hexdump.py
 	$(PYTHON) tools/make_hexdump.py $(BIN) hexdump.txt
 
 test: $(PFILE)
+	@echo "=== Embedded Binary Check ==="
+	$(PYTHON) tools/update_embedded_p.py --check
+	@echo ""
+	@echo "=== Opcode Coverage Check ==="
+	$(PYTHON) tools/opcode_check.py
+	@echo ""
 	@echo "=== Basic Tests ==="
 	$(PYTHON) test_harness.py
 	@echo ""
@@ -60,5 +75,11 @@ test: $(PFILE)
 diff-test: $(PFILE)
 	$(PYTHON) tools/diff_test.py
 
+# Browser smoke test for play/index.html. Not part of `make test`:
+# needs `npm install playwright` plus a chromium (set CHROMIUM_PATH to
+# use a system one, otherwise `npx playwright install chromium`).
+browser-test: $(PFILE)
+	node play/test_browser.js
+
 clean:
-	rm -f $(BIN) $(PFILE)
+	rm -f $(BIN) $(PFILE) $(SYM)

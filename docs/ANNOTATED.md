@@ -136,15 +136,15 @@ This table maps piece type (0-6) to the ZX81 character code for display. Note th
 ```asm
 piece_vals:
     DEFB    0           ; Empty: 0 points
-    DEFB    1           ; Pawn: 1 point
-    DEFB    3           ; Knight: 3 points
-    DEFB    3           ; Bishop: 3 points
-    DEFB    5           ; Rook: 5 points
-    DEFB    9           ; Queen: 9 points
-    DEFB    50          ; King: 50 points (effectively "game over")
+    DEFB    3           ; Pawn
+    DEFB    8           ; Knight
+    DEFB    8           ; Bishop
+    DEFB    12          ; Rook
+    DEFB    20          ; Queen
+    DEFB    50          ; King (effectively "game over")
 ```
 
-Standard chess piece values, with the King given an arbitrarily high value (50) to ensure the computer will always capture an exposed King. The King's value of 50 is much higher than the total value of all other pieces combined (1+1+...+9 = about 39), so capturing a King always beats any other move.
+These keep the classic relative ordering but are scaled so the **smallest capture (a pawn, 3) beats the biggest non-capture score** (a quiet move's 1 plus the centre bonus's 1). With the classic 1/3/3/5/9 values, a quiet move to a centre file scored 2 while winning a free pawn scored 1, and the engine politely declined material. The King's 50 is still higher than anything else on offer, so capturing an exposed King always wins the auction.
 
 ### Direction Tables (16 bytes)
 
@@ -577,11 +577,7 @@ think_scan:
     push    af                  ; Save current square number
 
     ; Look up what's on this square
-    ld      e, a
-    ld      d, 0
-    ld      hl, board
-    add     hl, de
-    ld      a, (hl)
+    call    board_addr          ; A = piece (shared helper, Part 7)
 
     and     a                   ; Empty?
     jr      z, think_next       ; Skip empty squares
@@ -590,20 +586,24 @@ think_scan:
 
     ; Found a Black piece - generate its moves
     and     $07                 ; Get piece type
-    pop     de                  ; E = square number
-    push    de                  ; Put it back (we need it later)
     ld      d, a                ; D = piece type
+    pop     af                  ; A = square number
+    push    af                  ; Put it back (think_next pops it)
+    ld      e, a                ; E = square number
+    ld      a, d                ; A = piece type for the compares
 
     cp      1                   ; Pawn?
-    jr      z, gen_pawn
+    jp      z, gen_pawn
     cp      2                   ; Knight?
-    jr      z, gen_knight
+    jp      z, gen_knight
     cp      6                   ; King?
-    jr      z, gen_king
-    jr      gen_slider          ; Must be Bishop, Rook, or Queen
+    jp      z, gen_king
+    jp      gen_slider          ; Must be Bishop, Rook, or Queen
 ```
 
 **The scanning strategy:** We check every square on the board (0 to 63). For each Black piece found, we branch to the appropriate move generator. The piece type is in D, the square number is in E. These two values are maintained throughout the move generation for that piece.
+
+**The $FF sentinel matters:** if the scan finds no move at all (a boxed-in lone king), `best_from` keeps its $FF. `ai_make_move` checks for it with a 3-byte `INC A / RET Z / DEC A` and skips the turn - without that guard, `do_move` would index `board + $FF`, which lands inside the machine code and corrupts it.
 
 ### gen_pawn: Black Pawn Moves
 
@@ -618,11 +618,19 @@ gen_pawn:
     and     a               ; Empty?
     jr      nz, gp_cap      ; Blocked - try captures
 
-    ld      a, 1            ; Empty: score = 1
+    ; A push to the last rank becomes a queen - score it as one
+    ld      a, c            ; Target square
+    cp      8               ; Below rank 2 = Black promotes
+    ld      a, 1            ; Quiet score (LD keeps the flags)
+    jr      nc, gp_score
+    ld      a, (piece_vals + 5) ; Promotion = a queen's worth
+gp_score:
     call    try_move        ; Record if best
 ```
 
 **Why SUB and not ADD:** Black pawns move south (decreasing rank), so we subtract 8. If the subtraction causes a carry (borrow), the pawn was already on rank 1 and can't move further south.
+
+**The promotion-aware push** is a favourite byte trick: `LD` doesn't touch the flags, so `LD A, 1` can sit *between* the `CP 8` and the `JR NC` that consumes its result - the quiet score is loaded optimistically and overwritten only on the promotion rank. Without this, the evaluation saw a promoting push as just another 1-point move and the AI would grab any pawn rather than queen.
 
 ```asm
     ; Double move from starting rank?
@@ -655,11 +663,15 @@ check_pawn_cap:
     jr      nz, cpc_bad     ; 0 = not diagonal, >=2 = wrapped
 
     ; Capturing onto the en passant square is valid even though
-    ; the square is empty
+    ; the square is empty - and it captures a real pawn, so it is
+    ; priced as one
     ld      a, (ep_square)
     cp      c
-    jr      z, cpc_take
+    jr      nz, cpc_notep
+    ld      a, (piece_vals + 1)  ; The captured pawn's value
+    jr      cpc_try
 
+cpc_notep:
     ; Otherwise the target must hold a White piece
     call    get_board_sq
     and     a
@@ -667,14 +679,35 @@ check_pawn_cap:
     bit     3, a
     jr      nz, cpc_bad     ; Own piece - can't capture
 
-cpc_take:
     call    score_move
+cpc_try:
     call    try_move
 cpc_bad:
     ret
 ```
 
-**Two reuse tricks here.** First, the diagonal test is just `check_col_delta` (the shared edge-wrap helper) followed by `DEC A / JR NZ` - delta must be exactly 1. Second, the en passant path needs no special scoring: `score_move` sees the empty ep square and returns its non-capture score of 1, which happens to be **exactly a pawn's value**. The AI prices the en passant capture correctly by accident of design.
+**Two things to notice.** First, the diagonal test is just `check_col_delta` (the shared edge-wrap helper) followed by `DEC A / JR NZ` - delta must be exactly 1. Second, the en passant capture is priced **explicitly** from `piece_vals`: an earlier version let `score_move` see the empty ep square and return its non-capture score of 1, which happened to equal a pawn's value - correct by accident, and a trap the moment the value table changed (which it since has).
+
+### gen_knight / gen_king: One Body, Two Doors
+
+The knight and king generators used to be twin 44-byte routines, identical except for the direction table and one immediate in the column-delta check. They are now two tiny prologues falling into a shared single-step body:
+
+```asm
+gen_knight:
+    ld      hl, knight_dirs
+    ld      d, 3            ; Column delta must be < 3
+    jr      gen_step
+gen_king:
+    ld      hl, king_dirs
+    ld      d, 2            ; Column delta must be < 2
+
+gen_step:
+    ld      b, 8            ; 8 possible moves
+    ...                     ; bounds check per direction, then:
+    cp      d               ; Column delta against this piece's limit
+```
+
+D is free to carry the limit because the piece type it held is dead after the dispatch, and every helper the body calls (`check_col_delta`, `get_board_sq`, `score_move`, `try_move`) preserves it. `CP D` is also a byte shorter than `CP n`. The merge freed 36 bytes - the budget that paid for the no-move guard, honest en passant pricing, and promotion-aware scoring.
 
 ### gen_slider: The Unified Sliding Piece Generator
 
@@ -865,12 +898,11 @@ Get piece char           24      Piece code to display char
 Get move                 41      Move input & validation
 Get square               29      Square input & echo
 Wait key routine         16      Keyboard polling
-Move execution           102     Moves, en passant, promotion
+Move execution           105     Moves, ep, promotion, no-move guard
 Check kings              22      Game over detection
 AI main loop             53      Scan board for moves
-Pawn gen + capture check 90      Black pawn moves incl. ep
-Knight generation        44      Knight L-shaped moves
-King generation          44      King single-step moves
+Pawn gen + capture check 101     Black pawn moves, ep, promo scoring
+Knight/King generation   52      One shared single-step body
 Slider generation        95      Bishop/Rook/Queen sliding
 board_addr/get_board_sq  18      Board indexing helpers
 check_col_delta          15      Edge-wrap detection
@@ -878,8 +910,8 @@ score_move               24      Capture evaluation
 try_move                 40      Best move + bonus + tie-break
 Print message            8       End-game messages
 -----------------------  -----
-TOTAL                    983     Every byte accounted for
-                                 (hard ceiling: 984)
+TOTAL                    961     Every byte accounted for
+                                 (hard ceiling: 984, 23 free)
 ```
 
 ---
@@ -910,6 +942,6 @@ The dominance of LD, AND, and JR tells the story: this program spends most of it
   Every byte was earned.
   Nothing is wasted."
 
-  Total: 983 bytes
-  Unused: 1 (the ceiling is 984)
+  Total: 961 bytes
+  Unused: 23 (the ceiling is 984)
 ```

@@ -112,7 +112,7 @@ For the true 1983 experience, type the program in from scratch:
 3. Type line 1:
    - Press `E` for REM (in keyword mode, E = REM)
    - Press NEWLINE
-   - Now type 983 space characters after the REM
+   - Now type 961 space characters after the REM
 
 4. Type line 2:
    - Type `2` (line number)
@@ -126,7 +126,7 @@ For the true 1983 experience, type the program in from scratch:
      (regenerated from chess.bin on every build - the loader.bas
      listing is historical and stale)
    - Example: `POKE 16585,0` then NEWLINE
-   - Repeat for all 983 bytes...
+   - Repeat for all 961 bytes...
    - (This is why God invented tape recorders)
 
 6. When done:
